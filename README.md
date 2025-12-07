@@ -18,6 +18,7 @@
 ## ✨ 核心特性
 
 - **RAG 引擎**: 基于 LlamaIndexTS 构建，支持文档切片、向量化和语义检索。
+- **Agentic RAG**: 支持 ReAct Agent 模式，Agent 可自主选择工具进行多轮推理和深度分析。
 - **智能问答**: 集成阿里云千问 (Qwen) 大模型，提供精准的上下文问答。
 - **实时处理**: 支持 SSE (Server-Sent Events) 实时显示文档索引进度。
 
