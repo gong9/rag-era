@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Send, Bot, User, Sparkles, Plus, Trash2, MessageSquare, PanelLeftClose, PanelLeftOpen, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Send, Bot, User, Sparkles, Plus, Trash2, MessageSquare, PanelLeftClose, PanelLeftOpen, Copy, Check, Zap, ChevronDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +12,8 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  thinking?: string[]; // Agent 思考过程
+  isAgentic?: boolean; // 是否是 Agentic 模式
   createdAt?: string;
   isError?: boolean;
   isNew?: boolean;
@@ -72,6 +74,9 @@ export default function ChatPage() {
   const [kbName, setKbName] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [ragMode, setRagMode] = useState<'normal' | 'agentic'>('normal');
+  const [showModeMenu, setShowModeMenu] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // 标记是否正在提交，避免 fetchSessionMessages 覆盖消息
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -81,14 +86,24 @@ export default function ChatPage() {
   }, [params.id]);
 
   useEffect(() => {
-    if (currentSessionId) {
+    // 如果正在提交消息，不要获取消息（避免覆盖用户刚输入的消息）
+    if (currentSessionId && !isSubmitting) {
       fetchSessionMessages(currentSessionId);
     }
-  }, [currentSessionId]);
+  }, [currentSessionId, isSubmitting]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages, loading]);
+
+  // 点击外部关闭模式菜单
+  useEffect(() => {
+    const handleClickOutside = () => setShowModeMenu(false);
+    if (showModeMenu) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showModeMenu]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -183,6 +198,8 @@ export default function ChatPage() {
     e.preventDefault();
     if (!input.trim() || loading) return;
 
+    setIsSubmitting(true); // 标记开始提交，防止 useEffect 覆盖消息
+
     let sessionId = currentSessionId;
     if (!sessionId) {
       const response = await fetch(`/api/chat/sessions/${params.id}`, {
@@ -195,6 +212,7 @@ export default function ChatPage() {
         sessionId = newSession.id;
       } else {
         alert('创建会话失败');
+        setIsSubmitting(false);
         return;
       }
     }
@@ -218,6 +236,7 @@ export default function ChatPage() {
           knowledgeBaseId: params.id,
           sessionId: sessionId,
           question: currentInput,
+          mode: ragMode,
         }),
       });
 
@@ -227,6 +246,8 @@ export default function ChatPage() {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
           content: data.answer,
+          thinking: data.thinking || [], // Agent 思考过程
+          isAgentic: data.isAgentic || false,
           isNew: true,
         };
         setMessages((prev) => [...prev, assistantMessage]);
@@ -254,6 +275,7 @@ export default function ChatPage() {
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setLoading(false);
+      setIsSubmitting(false); // 提交完成，允许 useEffect 获取消息
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
@@ -467,21 +489,41 @@ export default function ChatPage() {
                       {message.role === 'user' ? (
                         <p className="whitespace-pre-wrap">{message.content}</p>
                       ) : (
-                        <div className="prose prose-sm max-w-none prose-neutral prose-p:text-zinc-600 prose-headings:text-zinc-800">
-                          {showTypewriter ? (
-                            <TypewriterText 
-                              text={message.content} 
-                              onComplete={() => {
-                                setMessages((prev) => 
-                                  prev.map((m) => 
-                                    m.id === message.id ? { ...m, isNew: false } : m
-                                  )
-                                );
-                              }}
-                            />
-                          ) : (
-                            <ReactMarkdown>{message.content}</ReactMarkdown>
+                        <div className="space-y-3">
+                          {/* 思考过程（Agentic 模式） */}
+                          {message.thinking && message.thinking.length > 0 && (
+                            <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-3 text-sm">
+                              <div className="flex items-center gap-2 text-amber-700 font-medium mb-2">
+                                <Zap className="w-3.5 h-3.5" />
+                                <span>思考过程</span>
+                              </div>
+                              <div className="space-y-1.5 text-amber-900/70">
+                                {message.thinking.map((step, i) => (
+                                  <div key={i} className="flex items-start gap-2">
+                                    <span className="text-amber-400 mt-0.5">›</span>
+                                    <span>{step}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           )}
+                          {/* 回答内容 */}
+                          <div className="prose prose-sm max-w-none prose-neutral prose-p:text-zinc-600 prose-headings:text-zinc-800">
+                            {showTypewriter ? (
+                              <TypewriterText 
+                                text={message.content} 
+                                onComplete={() => {
+                                  setMessages((prev) => 
+                                    prev.map((m) => 
+                                      m.id === message.id ? { ...m, isNew: false } : m
+                                    )
+                                  );
+                                }}
+                              />
+                            ) : (
+                              <ReactMarkdown>{message.content}</ReactMarkdown>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -528,13 +570,78 @@ export default function ChatPage() {
             <form onSubmit={handleSubmit} className="relative group">
               <div className="absolute -inset-0.5 bg-gradient-to-r from-zinc-200 via-zinc-100 to-zinc-200 rounded-2xl opacity-50 blur transition duration-500 group-hover:opacity-75" />
               <div className="relative flex items-center bg-white rounded-2xl border border-zinc-200 shadow-sm group-hover:border-zinc-300 transition-colors">
+                {/* Mode Switcher */}
+                <div className="relative ml-3">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setShowModeMenu(!showModeMenu); }}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                      ragMode === 'agentic'
+                        ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                        : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                    )}
+                  >
+                    {ragMode === 'agentic' ? (
+                      <>
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>Agent</span>
+                      </>
+                    ) : (
+                      <>
+                        <Bot className="w-3.5 h-3.5" />
+                        <span>RAG</span>
+                      </>
+                    )}
+                    <ChevronDown className="w-3 h-3 opacity-50" />
+                  </button>
+                  
+                  {/* Dropdown Menu */}
+                  {showModeMenu && (
+                    <div className="absolute bottom-full left-0 mb-2 w-48 bg-white rounded-xl border border-zinc-200 shadow-lg overflow-hidden z-50">
+                      <div className="p-1">
+                        <button
+                          type="button"
+                          onClick={() => { setRagMode('normal'); setShowModeMenu(false); }}
+                          className={cn(
+                            "w-full flex items-start gap-3 p-3 rounded-lg text-left transition-colors",
+                            ragMode === 'normal' ? "bg-zinc-100" : "hover:bg-zinc-50"
+                          )}
+                        >
+                          <Bot className="w-4 h-4 mt-0.5 text-zinc-500" />
+                          <div>
+                            <div className="text-sm font-medium text-zinc-800">普通 RAG</div>
+                            <div className="text-xs text-zinc-400 mt-0.5">快速检索，一次响应</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setRagMode('agentic'); setShowModeMenu(false); }}
+                          className={cn(
+                            "w-full flex items-start gap-3 p-3 rounded-lg text-left transition-colors",
+                            ragMode === 'agentic' ? "bg-amber-50" : "hover:bg-zinc-50"
+                          )}
+                        >
+                          <Zap className="w-4 h-4 mt-0.5 text-amber-500" />
+                          <div>
+                            <div className="text-sm font-medium text-zinc-800">Agentic RAG</div>
+                            <div className="text-xs text-zinc-400 mt-0.5">智能推理，多轮迭代</div>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="h-6 w-px bg-zinc-200 mx-2" />
+
                 <Input
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="给知识库发送消息..."
+                  placeholder={ragMode === 'agentic' ? "让 Agent 帮你深度分析..." : "给知识库发送消息..."}
                   disabled={loading}
-                  className="w-full pl-6 pr-14 py-7 bg-transparent border-0 focus-visible:ring-0 placeholder:text-zinc-400 text-zinc-800"
+                  className="flex-1 pl-2 pr-14 py-7 bg-transparent border-0 focus-visible:ring-0 placeholder:text-zinc-400 text-zinc-800"
                 />
                 <Button 
                   type="submit" 
@@ -552,7 +659,7 @@ export default function ChatPage() {
               </div>
             </form>
             <p className="text-[10px] text-center text-zinc-300 mt-3 font-medium tracking-wide uppercase">
-              Powered by RAG Knowledge Base
+              {ragMode === 'agentic' ? 'Powered by Agentic RAG (ReAct Agent)' : 'Powered by RAG Knowledge Base'}
             </p>
           </div>
         </div>

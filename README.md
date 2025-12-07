@@ -1,5 +1,7 @@
 # RAG 知识库系统 (RAG Knowledge Base)
 
+> 半天写Demo， 半年难上线。 我就不信了 前端写不好RAG
+
 一个基于 **Next.js 14**、**LlamaIndex** 和 **Qwen (千问) LLM** 的现代化智能知识库系统。
 
 支持文档上传、向量索引、语义检索和智能问答，采用 **Linear 风格** 的极简 UI 设计。

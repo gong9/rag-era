@@ -9,6 +9,7 @@ const querySchema = z.object({
   knowledgeBaseId: z.string(),
   sessionId: z.string(),
   question: z.string().min(1),
+  mode: z.enum(['normal', 'agentic']).default('normal'),
 });
 
 export async function POST(request: Request) {
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
 
     const userId = (session.user as any).id;
     const body = await request.json();
-    const { knowledgeBaseId, sessionId, question } = querySchema.parse(body);
+    const { knowledgeBaseId, sessionId, question, mode } = querySchema.parse(body);
 
     // 验证知识库所有权
     const knowledgeBase = await prisma.knowledgeBase.findUnique({
@@ -65,8 +66,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '无权访问此会话' }, { status: 403 });
     }
 
-    // 查询
-    const result = await LLMService.query(knowledgeBaseId, question);
+    // 根据模式选择查询方法
+    console.log(`[API] Query mode: ${mode}`);
+    const result = mode === 'agentic'
+      ? await LLMService.agenticQuery(knowledgeBaseId, question)
+      : await LLMService.query(knowledgeBaseId, question);
 
     // 保存聊天历史
     await prisma.chatHistory.create({
