@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String          @id @default(uuid())
+  username      String          @unique
+  password      String
+  role          String          @default("user")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  knowledgeBases KnowledgeBase[]
+  chatSessions  ChatSession[]
+  chatHistories ChatHistory[]
+}
+
+model KnowledgeBase {
+  id          String     @id @default(uuid())
+  name        String
+  description String?
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents   Document[]
+  chatSessions ChatSession[]
+  chatHistories ChatHistory[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([userId])
+}
+
+model Document {
+  id              String        @id @default(uuid())
+  name            String
+  path            String
+  status          String        @default("pending")
+  errorMessage    String?
+  knowledgeBaseId String
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([knowledgeBaseId])
+}
+
+model ChatSession {
+  id              String        @id @default(uuid())
+  title           String        @default("新对话")
+  knowledgeBaseId String
+  userId          String
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatHistories   ChatHistory[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([knowledgeBaseId])
+  @@index([userId])
+}
+
+model ChatHistory {
+  id              String        @id @default(uuid())
+  sessionId       String
+  knowledgeBaseId String
+  userId          String
+  question        String
+  answer          String
+  sourceNodes     String?
+  session         ChatSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+
+  @@index([sessionId])
+  @@index([knowledgeBaseId])
+  @@index([userId])
+}
+
