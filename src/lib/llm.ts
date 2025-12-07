@@ -246,10 +246,16 @@ export class LLMService {
 
   /**
    * 查询知识库（普通 RAG 模式）
+   * @param chatHistory 对话历史，用于多轮对话上下文
    */
-  static async query(knowledgeBaseId: string, question: string): Promise<any> {
+  static async query(
+    knowledgeBaseId: string, 
+    question: string,
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+  ): Promise<any> {
     configureLLM(); // 确保配置已加载
     console.log(`[LLM] Query: "${question}" in KB ${knowledgeBaseId}`);
+    console.log(`[LLM] Chat history: ${chatHistory.length} messages`);
     const startTime = Date.now();
     
     console.log(`[LLM] Loading index...`);
@@ -264,10 +270,21 @@ export class LLMService {
     });
     console.log(`[LLM] Query engine created in ${Date.now() - t2}ms`);
 
+    // 如果有对话历史，将其作为上下文加入查询
+    let queryWithContext = question;
+    if (chatHistory.length > 0) {
+      const historyContext = chatHistory
+        .slice(-6) // 最多取最近 3 轮对话
+        .map(msg => `${msg.role === 'user' ? '用户' : 'AI'}: ${msg.content}`)
+        .join('\n');
+      queryWithContext = `以下是之前的对话历史：\n${historyContext}\n\n用户当前问题：${question}\n\n请根据对话上下文回答当前问题。`;
+      console.log(`[LLM] Query with context length: ${queryWithContext.length} chars`);
+    }
+
     console.log(`[LLM] Executing query...`);
     const t3 = Date.now();
     const response = await queryEngine.query({
-      query: question,
+      query: queryWithContext,
     });
     console.log(`[LLM] Query executed in ${Date.now() - t3}ms`);
 
@@ -295,9 +312,18 @@ export class LLMService {
    * 2. deep_search - 深度检索（Top-8），用于全面分析
    * 3. summarize_topic - 总结某个主题的所有相关内容
    */
-  static async agenticQuery(knowledgeBaseId: string, question: string): Promise<any> {
+  /**
+   * Agentic RAG 模式查询
+   * @param chatHistory 对话历史，用于多轮对话上下文
+   */
+  static async agenticQuery(
+    knowledgeBaseId: string, 
+    question: string,
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+  ): Promise<any> {
     configureLLM(); // 确保配置已加载
     console.log(`[LLM] Agentic Query: "${question}" in KB ${knowledgeBaseId}`);
+    console.log(`[LLM] Chat history: ${chatHistory.length} messages`);
     const startTime = Date.now();
 
     console.log(`[LLM] Loading index for agent...`);
@@ -378,8 +404,15 @@ export class LLMService {
     console.log(`[LLM]   - deep_search: 深度检索 (Top-8)`);
     console.log(`[LLM]   - summarize_topic: 主题总结 (Top-10)`);
     
+    // 将对话历史转换为 LlamaIndex 格式
+    const llamaHistory = chatHistory.slice(-6).map(msg => ({
+      role: msg.role,
+      content: msg.content,
+    }));
+
     const agent = new ReActAgent({
       tools: [searchTool, deepSearchTool, summarizeTool],
+      chatHistory: llamaHistory, // 传入对话历史
       verbose: true, // 日志显示思考过程
     });
 

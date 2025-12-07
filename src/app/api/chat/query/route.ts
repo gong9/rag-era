@@ -48,12 +48,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '知识库中没有可用的文档' }, { status: 400 });
     }
 
-    // 验证会话所有权
+    // 验证会话所有权并获取历史对话
     const chatSession = await prisma.chatSession.findUnique({
       where: { id: sessionId },
       include: {
         chatHistories: {
-          take: 1,
+          orderBy: { createdAt: 'asc' },
+          take: 10, // 最多取最近 10 轮对话作为上下文
         },
       },
     });
@@ -66,11 +67,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '无权访问此会话' }, { status: 403 });
     }
 
-    // 根据模式选择查询方法
+    // 构建对话历史（用于多轮对话记忆）
+    const chatHistory = chatSession.chatHistories.flatMap((h) => [
+      { role: 'user' as const, content: h.question },
+      { role: 'assistant' as const, content: h.answer },
+    ]);
+    console.log(`[API] Chat history: ${chatHistory.length / 2} rounds`);
+
+    // 根据模式选择查询方法，传入对话历史
     console.log(`[API] Query mode: ${mode}`);
     const result = mode === 'agentic'
-      ? await LLMService.agenticQuery(knowledgeBaseId, question)
-      : await LLMService.query(knowledgeBaseId, question);
+      ? await LLMService.agenticQuery(knowledgeBaseId, question, chatHistory)
+      : await LLMService.query(knowledgeBaseId, question, chatHistory);
 
     // 保存聊天历史
     await prisma.chatHistory.create({
