@@ -16,6 +16,9 @@ const toolNameMap: Record<string, string> = {
   'summarize_topic': '📋 总结主题内容',
   'decompose_question': '🔀 拆解复杂问题',
   'verify_answer': '✅ 验证答案质量',
+  'get_current_datetime': '📅 获取当前日期时间',
+  'web_search': '🌐 搜索互联网',
+  'fetch_webpage': '📄 抓取网页内容',
 };
 
 /**
@@ -521,7 +524,54 @@ export class LLMService {
       }
     );
 
-    // ========== 工具 5: 网页抓取 ==========
+    // ========== 工具 5: 获取当前日期时间 ==========
+    const dateTimeTool = FunctionTool.from(
+      async (): Promise<string> => {
+        const now = new Date();
+        
+        // 格式化日期时间（中国时区）
+        const options: Intl.DateTimeFormatOptions = {
+          timeZone: 'Asia/Shanghai',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          weekday: 'long',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        };
+        
+        const formatter = new Intl.DateTimeFormat('zh-CN', options);
+        const formatted = formatter.format(now);
+        
+        // 额外提供一些有用信息
+        const year = now.getFullYear();
+        const month = now.getMonth() + 1;
+        const day = now.getDate();
+        const dayOfYear = Math.ceil((now.getTime() - new Date(year, 0, 1).getTime()) / 86400000);
+        const weekNumber = Math.ceil(dayOfYear / 7);
+        
+        const result = `当前日期时间：${formatted}
+- 公历日期：${year}年${month}月${day}日
+- 今天是 ${year} 年的第 ${dayOfYear} 天
+- 今天是 ${year} 年的第 ${weekNumber} 周`;
+        
+        console.log(`[LLM] 📅 DateTime tool called, result: ${formatted}`);
+        return result;
+      },
+      {
+        name: 'get_current_datetime',
+        description: '获取当前的日期和时间。当用户询问"今天是几号"、"现在几点"、"今天星期几"、"什么时候"等与日期时间相关的问题时使用此工具。',
+        parameters: {
+          type: 'object',
+          properties: {},
+          required: [],
+        },
+      }
+    );
+
+    // ========== 工具 6: 网页抓取 ==========
     const fetchWebpageTool = FunctionTool.from(
       async (params: { url: string } | string): Promise<string> => {
         // 兼容不同的参数格式
@@ -611,13 +661,15 @@ export class LLMService {
 2. deep_search - 深度检索，返回 8 个相关文档片段，适合需要全面了解的问题
 3. summarize_topic - 主题总结，输入关键词，返回该主题的全面总结
 4. web_search - 网络搜索，当知识库没有答案时搜索互联网，返回搜索结果摘要
-5. fetch_webpage - 网页抓取，获取指定 URL 的完整网页内容
+5. get_current_datetime - 获取当前日期时间，用于回答"今天几号"、"现在几点"等问题
+6. fetch_webpage - 网页抓取，获取指定 URL 的完整网页内容
 
 工作策略：
 - 简单问题（如"什么是X"）：使用 search_knowledge
 - 复杂问题（如"对比A和B"）：先用 search_knowledge 查 A，再查 B，然后综合回答
 - 总结类问题（如"总结X的内容"）：使用 summarize_topic
 - 需要全面信息时：使用 deep_search
+- 日期时间问题（如"今天几号"、"现在几点"、"星期几"）：直接使用 get_current_datetime
 - 知识库没有答案或需要最新信息时：先用 web_search 搜索，如果摘要不够详细，再用 fetch_webpage 抓取具体网页
 
 回答要求：
@@ -626,14 +678,16 @@ export class LLMService {
 - 如果知识库中没有相关信息，必须使用 web_search 搜索互联网
 - 如果搜索结果摘要不够详细，必须使用 fetch_webpage 抓取网页内容
 - 不要说"我无法提供"，要主动尝试使用工具获取信息
-- 对于日期、时间、天气、新闻、股票等实时信息，必须使用 web_search 获取最新数据，不要依赖自己的知识`;
+- 对于日期、时间相关问题，优先使用 get_current_datetime 工具
+- 对于天气、新闻、股票等实时信息，必须使用 web_search 获取最新数据`;
 
     // 创建 ReAct Agent，配备工具
-    console.log(`[LLM] Creating ReAct Agent with 5 tools...`);
+    console.log(`[LLM] Creating ReAct Agent with 6 tools...`);
     console.log(`[LLM]   - search_knowledge: 精准检索 (Top-3)`);
     console.log(`[LLM]   - deep_search: 深度检索 (Top-8)`);
     console.log(`[LLM]   - summarize_topic: 主题总结 (Top-10)`);
     console.log(`[LLM]   - web_search: 网络搜索 (SearXNG)`);
+    console.log(`[LLM]   - get_current_datetime: 获取当前日期时间`);
     console.log(`[LLM]   - fetch_webpage: 网页抓取`);
     
     // 将对话历史转换为 LlamaIndex 格式
@@ -643,7 +697,7 @@ export class LLMService {
     }));
 
     const agent = new ReActAgent({
-      tools: [searchTool, deepSearchTool, summarizeTool, webSearchTool, fetchWebpageTool],
+      tools: [searchTool, deepSearchTool, summarizeTool, webSearchTool, dateTimeTool, fetchWebpageTool],
       chatHistory: llamaHistory, // 传入对话历史
       verbose: true, // 日志显示思考过程
     });
