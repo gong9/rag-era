@@ -249,7 +249,7 @@ export default function DiagramMessage({ mermaidSyntax, className = '' }: Diagra
               appState: {
                 viewBackgroundColor: '#ffffff',
                 currentItemFontFamily: 1,
-                zoom: { value: 1 },
+                zoom: { value: 1 as any },
               },
               scrollToContent: true,
             }}
