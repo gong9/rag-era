@@ -379,6 +379,230 @@ export class LLMService {
       }
     );
 
+    // ========== 工具 4: 网络搜索 ==========
+    const webSearchTool = FunctionTool.from(
+      async (params: { query: string } | string): Promise<string> => {
+        // 兼容不同的参数格式
+        let query: string;
+        if (typeof params === 'string') {
+          query = params;
+        } else if (params && typeof params === 'object' && params.query) {
+          query = params.query;
+        } else {
+          console.log(`[LLM] 🌐 Web search: invalid params`, params);
+          return '搜索参数无效';
+        }
+        
+        console.log(`[LLM] 🌐 Web search: original query "${query}"`);
+        
+        // 用 LLM 分析用户意图，生成最佳搜索词
+        let optimizedQuery = query;
+        try {
+          const llm = Settings.llm;
+          const intentResponse = await llm.complete({
+            prompt: `你是一个搜索优化专家。用户想搜索的内容是："${query}"
+
+请分析用户意图，生成一个最适合在搜索引擎中使用的简洁搜索词。
+
+要求：
+1. 只输出搜索词本身，不要任何解释
+2. 搜索词要简洁有效，通常 2-5 个关键词
+3. 去掉口语化的词（如"啊"、"呢"、"吗"）
+4. 如果是查天气，格式为"城市名+天气"
+5. 如果是查新闻，加上时间词如"最新"
+
+直接输出搜索词：`,
+          });
+          
+          optimizedQuery = intentResponse.text.trim().replace(/["""'']/g, '');
+          console.log(`[LLM] 🌐 Intent analysis: "${query}" → "${optimizedQuery}"`);
+        } catch (e) {
+          console.log(`[LLM] 🌐 Intent analysis failed, using original query`);
+        }
+        
+        // SearXNG 实例列表（优先使用自建实例）
+        const instances = [
+          'http://39.96.203.251:8888',  // 自建实例（优先） 
+        ];
+        
+        for (const instance of instances) {
+          try {
+            const url = `${instance}/search?q=${encodeURIComponent(optimizedQuery)}&format=json&language=zh-CN`;
+            console.log(`[LLM] 🌐 Trying instance: ${instance}`);
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超时
+            
+            const response = await fetch(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                'Accept': 'application/json',
+              },
+              signal: controller.signal,
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+              console.log(`[LLM] 🌐 Instance ${instance} returned ${response.status}`);
+              continue;
+            }
+            
+            const data = await response.json();
+            
+            if (!data.results || data.results.length === 0) {
+              console.log(`[LLM] 🌐 Instance ${instance} returned no results`);
+              continue;
+            }
+            
+            const results = data.results.slice(0, 3);
+            const top3 = results.map((r: any, i: number) => 
+              `[${i + 1}] ${r.title || '无标题'}\n${r.content || r.description || '无描述'}\n来源: ${r.url}`
+            ).join('\n\n');
+            
+            console.log(`[LLM] 🌐 Web search found ${data.results.length} results from ${instance}`);
+            console.log(`[LLM] 🌐 Search results returned to Agent:\n${top3}`);
+            
+            // 自动抓取第一个结果的网页内容（因为千问对工具调用支持不好）
+            if (results.length > 0 && results[0].url) {
+              try {
+                console.log(`[LLM] 🌐 Auto-fetching first result: ${results[0].url}`);
+                const pageResponse = await fetch(results[0].url, {
+                  headers: {
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                    'Accept': 'text/html',
+                  },
+                  signal: AbortSignal.timeout(8000),
+                });
+                
+                if (pageResponse.ok) {
+                  let pageText = await pageResponse.text();
+                  // 简单清理 HTML
+                  pageText = pageText
+                    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+                    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+                    .replace(/<[^>]+>/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .substring(0, 2000);
+                  
+                  console.log(`[LLM] 🌐 Auto-fetched page content: ${pageText.length} chars`);
+                  
+                  return `搜索结果摘要:\n${top3}\n\n第一个网页的详细内容:\n${pageText}`;
+                }
+              } catch (e) {
+                console.log(`[LLM] 🌐 Auto-fetch failed, returning search results only`);
+              }
+            }
+            
+            return top3;
+          } catch (error: any) {
+            console.log(`[LLM] 🌐 Instance ${instance} failed: ${error.message}`);
+            continue;
+          }
+        }
+        
+        console.log(`[LLM] 🌐 All SearXNG instances failed`);
+        return '网络搜索暂时不可用，所有搜索节点均无响应';
+      },
+      {
+        name: 'web_search',
+        description: '搜索互联网获取最新信息。当知识库中没有答案，或需要实时资讯、新闻、最新技术动态时使用。',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: '搜索关键词',
+            },
+          },
+          required: ['query'],
+        },
+      }
+    );
+
+    // ========== 工具 5: 网页抓取 ==========
+    const fetchWebpageTool = FunctionTool.from(
+      async (params: { url: string } | string): Promise<string> => {
+        // 兼容不同的参数格式
+        let url: string;
+        if (typeof params === 'string') {
+          url = params;
+        } else if (params && typeof params === 'object' && params.url) {
+          url = params.url;
+        } else {
+          console.log(`[LLM] 📄 Fetch webpage: invalid params`, params);
+          return '网页URL参数无效';
+        }
+        
+        console.log(`[LLM] 📄 Fetching webpage: ${url}`);
+        
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+          
+          const response = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            },
+            signal: controller.signal,
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            return `无法访问该网页: HTTP ${response.status}`;
+          }
+          
+          const html = await response.text();
+          
+          // 提取正文内容（简单清理 HTML）
+          let text = html
+            // 移除 script 和 style
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            // 移除 HTML 标签
+            .replace(/<[^>]+>/g, ' ')
+            // 解码 HTML 实体
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            // 清理多余空白
+            .replace(/\s+/g, ' ')
+            .trim();
+          
+          // 限制长度（避免内容过长）
+          if (text.length > 3000) {
+            text = text.substring(0, 3000) + '...(内容已截断)';
+          }
+          
+          console.log(`[LLM] 📄 Webpage content length: ${text.length} chars`);
+          return text || '网页内容为空';
+        } catch (error: any) {
+          console.error(`[LLM] 📄 Fetch webpage failed: ${error.message}`);
+          return `抓取网页失败: ${error.message}`;
+        }
+      },
+      {
+        name: 'fetch_webpage',
+        description: '抓取指定网页的内容。当 web_search 返回的摘要不够详细时，使用此工具获取网页的完整内容。输入网页 URL，返回网页正文。',
+        parameters: {
+          type: 'object',
+          properties: {
+            url: {
+              type: 'string',
+              description: '要抓取的网页 URL',
+            },
+          },
+          required: ['url'],
+        },
+      }
+    );
+
     // ========== System Prompt ==========
     const systemPrompt = `你是一个智能知识库助手，擅长深度分析和准确回答问题。
 
@@ -386,23 +610,31 @@ export class LLMService {
 1. search_knowledge - 精准检索，返回 3 个最相关的文档片段
 2. deep_search - 深度检索，返回 8 个相关文档片段，适合需要全面了解的问题
 3. summarize_topic - 主题总结，输入关键词，返回该主题的全面总结
+4. web_search - 网络搜索，当知识库没有答案时搜索互联网，返回搜索结果摘要
+5. fetch_webpage - 网页抓取，获取指定 URL 的完整网页内容
 
 工作策略：
 - 简单问题（如"什么是X"）：使用 search_knowledge
 - 复杂问题（如"对比A和B"）：先用 search_knowledge 查 A，再查 B，然后综合回答
 - 总结类问题（如"总结X的内容"）：使用 summarize_topic
 - 需要全面信息时：使用 deep_search
+- 知识库没有答案或需要最新信息时：先用 web_search 搜索，如果摘要不够详细，再用 fetch_webpage 抓取具体网页
 
 回答要求：
 - 用中文回答
 - 答案要准确、完整、有条理
-- 如果知识库中没有相关信息，请明确说明`;
+- 如果知识库中没有相关信息，必须使用 web_search 搜索互联网
+- 如果搜索结果摘要不够详细，必须使用 fetch_webpage 抓取网页内容
+- 不要说"我无法提供"，要主动尝试使用工具获取信息
+- 对于日期、时间、天气、新闻、股票等实时信息，必须使用 web_search 获取最新数据，不要依赖自己的知识`;
 
     // 创建 ReAct Agent，配备工具
-    console.log(`[LLM] Creating ReAct Agent with 3 tools...`);
+    console.log(`[LLM] Creating ReAct Agent with 5 tools...`);
     console.log(`[LLM]   - search_knowledge: 精准检索 (Top-3)`);
     console.log(`[LLM]   - deep_search: 深度检索 (Top-8)`);
     console.log(`[LLM]   - summarize_topic: 主题总结 (Top-10)`);
+    console.log(`[LLM]   - web_search: 网络搜索 (SearXNG)`);
+    console.log(`[LLM]   - fetch_webpage: 网页抓取`);
     
     // 将对话历史转换为 LlamaIndex 格式
     const llamaHistory = chatHistory.slice(-6).map(msg => ({
@@ -411,7 +643,7 @@ export class LLMService {
     }));
 
     const agent = new ReActAgent({
-      tools: [searchTool, deepSearchTool, summarizeTool],
+      tools: [searchTool, deepSearchTool, summarizeTool, webSearchTool, fetchWebpageTool],
       chatHistory: llamaHistory, // 传入对话历史
       verbose: true, // 日志显示思考过程
     });
