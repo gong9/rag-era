@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { LLMService } from '@/lib/llm';
 import { z } from 'zod';
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     }
 
     // 构建对话历史（用于多轮对话记忆）
-    const chatHistory = chatSession.chatHistories.flatMap((h) => [
+    const chatHistory = chatSession.chatHistories.flatMap((h: any) => [
       { role: 'user' as const, content: h.question },
       { role: 'assistant' as const, content: h.answer },
     ]);
