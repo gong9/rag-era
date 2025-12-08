@@ -2,11 +2,26 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Send, Bot, User, Sparkles, Plus, Trash2, MessageSquare, PanelLeftClose, PanelLeftOpen, Copy, Check, Zap, ChevronDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
+import { hasMermaidDiagram, extractMermaidFromMessage, removesMermaidFromMessage } from '@/components/DiagramMessage';
+
+// 动态导入 DiagramMessage 组件，禁用 SSR
+const DiagramMessage = dynamic(() => import('@/components/DiagramMessage'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[300px] bg-zinc-50 rounded-xl flex items-center justify-center">
+      <div className="flex flex-col items-center gap-2">
+        <div className="w-6 h-6 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin" />
+        <span className="text-xs text-zinc-400">加载图表...</span>
+      </div>
+    </div>
+  ),
+});
 
 interface Message {
   id: string;
@@ -74,7 +89,7 @@ export default function ChatPage() {
   const [kbName, setKbName] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
-  const [ragMode, setRagMode] = useState<'normal' | 'agentic'>('normal');
+  const [ragMode, setRagMode] = useState<'normal' | 'agentic'>('agentic');
   const [showModeMenu, setShowModeMenu] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false); // 标记是否正在提交，避免 fetchSessionMessages 覆盖消息
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -508,28 +523,49 @@ export default function ChatPage() {
                             </div>
                           )}
                           {/* 回答内容 */}
-                          <div className="prose prose-sm max-w-none prose-neutral prose-p:text-zinc-600 prose-headings:text-zinc-800">
-                            {showTypewriter ? (
-                              <TypewriterText 
-                                text={message.content} 
-                                onComplete={() => {
-                                  setMessages((prev) => 
-                                    prev.map((m) => 
-                                      m.id === message.id ? { ...m, isNew: false } : m
-                                    )
-                                  );
-                                }}
-                              />
-                            ) : (
-                              <ReactMarkdown>{message.content}</ReactMarkdown>
-                            )}
-                          </div>
+                          {(() => {
+                            // 检查是否包含图表
+                            const hasDiagram = hasMermaidDiagram(message.content);
+                            const mermaidSyntax = hasDiagram ? extractMermaidFromMessage(message.content) : null;
+                            const textContent = hasDiagram ? removesMermaidFromMessage(message.content) : message.content;
+                            
+                            return (
+                              <>
+                                {/* 文本内容 */}
+                                {textContent && (
+                                  <div className="prose prose-sm max-w-none prose-neutral prose-p:text-zinc-600 prose-headings:text-zinc-800">
+                                    {showTypewriter ? (
+                                      <TypewriterText 
+                                        text={textContent} 
+                                        onComplete={() => {
+                                          setMessages((prev) => 
+                                            prev.map((m) => 
+                                              m.id === message.id ? { ...m, isNew: false } : m
+                                            )
+                                          );
+                                        }}
+                                      />
+                                    ) : (
+                                      <ReactMarkdown>{textContent}</ReactMarkdown>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                {/* 图表内容 */}
+                                {hasDiagram && mermaidSyntax && (
+                                  <div className="mt-3 w-[560px]">
+                                    <DiagramMessage mermaidSyntax={mermaidSyntax} />
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>
                     
                     {/* Copy Button for Assistant */}
-                    {message.role === 'assistant' && !message.isError && (
+                    {message.role === 'assistant' && !message.isError && !hasMermaidDiagram(message.content) && (
                       <div className="mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         <button
                           onClick={() => copyToClipboard(message.content, message.id)}

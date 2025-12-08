@@ -10,6 +10,8 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.0",
+    "@excalidraw/mermaid-to-excalidraw": "^2.0.0",
     "@hookform/resolvers": "^3.3.4",
     "@llamaindex/openai": "^0.4.22",
     "@llamaindex/readers": "^3.1.21",

@@ -7,6 +7,8 @@ import * as path from 'path';
 const indexCache = new Map<string, VectorStoreIndex>();
 let isConfigured = false;
 
+import { cleanMermaidSyntax } from './mermaid-cleaner';
+
 /**
  * 工具名称到友好描述的映射
  */
@@ -19,16 +21,56 @@ const toolNameMap: Record<string, string> = {
   'get_current_datetime': '📅 获取当前日期时间',
   'web_search': '🌐 搜索互联网',
   'fetch_webpage': '📄 抓取网页内容',
+  'generate_diagram': '🎨 生成可视化图表',
 };
 
 /**
- * 解析 ReAct Agent 的输出，提取思考过程和最终答案
+ * 工具调用记录
+ */
+interface ToolCall {
+  tool: string;
+  input: string;
+  output: string;
+}
+
+/**
+ * 执行链路（用于质量评估）
+ */
+interface ExecutionTrace {
+  // 用户问题
+  question: string;
+  
+  // 意图判断
+  intent: {
+    type: string;
+    description: string;
+    keywords: string[];
+    suggestedTool: string | null;
+  };
+  
+  // 预检索结果
+  preSearch: {
+    executed: boolean;
+    query: string;
+    results: Array<{ docName: string; preview: string; score: number }>;
+  };
+  
+  // Agent 工具调用链
+  toolCalls: ToolCall[];
+  
+  // 最终回答
+  answer: string;
+}
+
+/**
+ * 解析 ReAct Agent 的输出，提取思考过程、最终答案和工具调用记录
  * 注意：保留答案中的换行符以保持格式
  */
-function parseAgentOutput(rawOutput: string): { thinking: string[]; answer: string } {
-  if (!rawOutput) return { thinking: [], answer: '' };
+function parseAgentOutput(rawOutput: string): { thinking: string[]; answer: string; toolCalls: ToolCall[] } {
+  if (!rawOutput) return { thinking: [], answer: '', toolCalls: [] };
   
   const thinkingSteps: string[] = [];
+  const toolCalls: ToolCall[] = [];
   let finalAnswer = '';
   
   // 用于提取 thinking 的内容（可以压缩空白）
@@ -46,14 +88,37 @@ function parseAgentOutput(rawOutput: string): { thinking: string[]; answer: stri
     }
   }
   
-  // 提取 Action（转换成友好描述）
-  const actionMatches = compressedContent.matchAll(/Action:\s*(\w+)/gi);
-  for (const match of actionMatches) {
-    const toolName = match[1];
+  // 提取 Action 和 Observation（工具调用记录）
+  const actionPattern = /Action:\s*(\w+)\s*Action Input:\s*(\{[^}]*\}|"[^"]*")\s*"*\s*Observation:\s*([\s\S]*?)(?=\s*(?:Thought:|Action:|Answer:|$))/gi;
+  let actionMatch;
+  while ((actionMatch = actionPattern.exec(compressedContent)) !== null) {
+    const toolName = actionMatch[1];
+    const toolInput = actionMatch[2];
+    const toolOutput = actionMatch[3]?.substring(0, 200) || ''; // 截取前200字符
+    
+    toolCalls.push({
+      tool: toolName,
+      input: toolInput,
+      output: toolOutput.trim(),
+    });
+    
     const friendlyName = toolNameMap[toolName] || `使用工具: ${toolName}`;
-    // 避免重复
     if (!thinkingSteps.some(s => s.includes(friendlyName))) {
       thinkingSteps.push(friendlyName);
+    }
+  }
+  
+  // 如果上面没匹配到，用简单模式再试一次
+  if (toolCalls.length === 0) {
+    const simpleActionMatches = compressedContent.matchAll(/Action:\s*(\w+)/gi);
+    for (const match of simpleActionMatches) {
+      const toolName = match[1];
+      toolCalls.push({ tool: toolName, input: '', output: '' });
+      
+      const friendlyName = toolNameMap[toolName] || `使用工具: ${toolName}`;
+      if (!thinkingSteps.some(s => s.includes(friendlyName))) {
+        thinkingSteps.push(friendlyName);
+      }
     }
   }
   
@@ -90,6 +155,7 @@ function parseAgentOutput(rawOutput: string): { thinking: string[]; answer: stri
   return {
     thinking: uniqueThinking,
     answer: finalAnswer || rawOutput,
+    toolCalls,
   };
 }
 
@@ -161,7 +227,20 @@ export class LLMService {
       console.log(`[LLM] Starting index creation for KB ${knowledgeBaseId}`);
       onProgress?.(5, '初始化处理环境...');
       
+      // 清除旧缓存，确保使用新索引
+      if (indexCache.has(knowledgeBaseId)) {
+        indexCache.delete(knowledgeBaseId);
+        console.log(`[LLM] Cleared cached index for KB ${knowledgeBaseId}`);
+      }
+      
       const storageDir = this.getStorageDir(knowledgeBaseId);
+      
+      // 删除旧的存储目录，确保完全重建
+      if (await fs.pathExists(storageDir)) {
+        await fs.remove(storageDir);
+        console.log(`[LLM] Removed old storage dir: ${storageDir}`);
+      }
+      
       await fs.ensureDir(storageDir);
 
       // 检查是否有文档
@@ -177,6 +256,27 @@ export class LLMService {
       
       const reader = new SimpleDirectoryReader();
       const documents = await reader.loadData({ directoryPath: documentsPath });
+
+      // 为每个文档添加文件名到 metadata，便于按书名/文件名检索
+      for (const doc of documents) {
+        const filePath = doc.metadata?.file_path || doc.metadata?.filePath || '';
+        const fileName = filePath ? path.basename(filePath) : '';
+        const fileNameWithoutExt = fileName.replace(/\.[^/.]+$/, ''); // 去掉扩展名
+        
+        doc.metadata = {
+          ...doc.metadata,
+          fileName: fileName,
+          documentName: fileNameWithoutExt,
+          // 将文件名添加到文档开头，提高检索命中率
+        };
+        
+        // 在文档内容前添加文件名标识
+        if (fileNameWithoutExt && doc.text) {
+          doc.text = `【文档: ${fileNameWithoutExt}】\n\n${doc.text}`;
+        }
+        
+        console.log(`[LLM] Document metadata: ${fileName} -> ${fileNameWithoutExt}`);
+      }
 
       console.log(`[LLM] Loaded ${documents.length} documents for KB ${knowledgeBaseId}`);
       onProgress?.(40, `已加载 ${documents.length} 个文档`);
@@ -307,14 +407,105 @@ export class LLMService {
   }
 
   /**
-   * 查询知识库（Agentic RAG 模式 - ReAct Agent）
-   * Agent 会自主决定：是否需要检索、如何检索、是否需要多轮迭代
-   * 
-   * 可用工具：
-   * 1. search_knowledge - 精准检索（Top-3）
-   * 2. deep_search - 深度检索（Top-8），用于全面分析
-   * 3. summarize_topic - 总结某个主题的所有相关内容
+   * 意图分析结果类型
    */
+  private static intentTypes = {
+    greeting: '问候/打招呼',
+    small_talk: '闲聊',
+    document_summary: '文档/书籍总结',
+    knowledge_query: '知识库查询',
+    draw_diagram: '画图/生成流程图',
+    web_search: '网络搜索',
+    datetime: '日期时间查询',
+  };
+
+  /**
+   * 分析用户意图
+   */
+  private static async analyzeIntent(question: string): Promise<{
+    intent: string;
+    needsKnowledgeBase: boolean;
+    keywords: string[];
+    suggestedTool: string | null;
+  }> {
+    const llm = Settings.llm;
+    
+    const intentPrompt = `分析用户问题的意图，输出 JSON。
+
+用户问题: "${question}"
+
+意图类型：
+- greeting: 问候打招呼（你好、Hi、早上好等）
+- small_talk: 闲聊（谢谢、再见、好的等）
+- document_summary: 总结某个文档/书籍（"xxx讲了什么"、"总结xxx"、"介绍xxx"）
+- knowledge_query: 查询知识库中的具体信息（"什么是xxx"、"如何xxx"、"xxx的定义"）
+- draw_diagram: 画图请求（"画个图"、"生成流程图"、"画架构图"）
+- web_search: 需要实时网络信息（天气、新闻、最新消息）
+- datetime: 日期时间查询（今天几号、现在几点）
+
+输出 JSON 格式（不要其他内容）：
+{"intent": "意图类型", "needsKnowledgeBase": true/false, "keywords": ["关键词"], "suggestedTool": "建议工具或null"}
+
+示例：
+问题: "Agents_v8.pdf 讲了什么"
+输出: {"intent": "document_summary", "needsKnowledgeBase": true, "keywords": ["Agents_v8"], "suggestedTool": "summarize_topic"}
+
+问题: "你好"
+输出: {"intent": "greeting", "needsKnowledgeBase": false, "keywords": [], "suggestedTool": null}
+
+问题: "画一个RAG的流程图"
+输出: {"intent": "draw_diagram", "needsKnowledgeBase": true, "keywords": ["RAG", "流程图"], "suggestedTool": "generate_diagram"}`;
+
+    try {
+      const response = await llm.complete({ prompt: intentPrompt });
+      const text = response.text.trim();
+      
+      // 解析 JSON
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const result = JSON.parse(jsonMatch[0]);
+        return {
+          intent: result.intent || 'knowledge_query',
+          needsKnowledgeBase: result.needsKnowledgeBase !== false,
+          keywords: result.keywords || [],
+          suggestedTool: result.suggestedTool || null,
+        };
+      }
+    } catch (error) {
+      console.log(`[LLM] 🎯 Intent analysis error: ${error}`);
+    }
+    
+    // 默认返回知识库查询
+    return {
+      intent: 'knowledge_query',
+      needsKnowledgeBase: true,
+      keywords: [],
+      suggestedTool: null,
+    };
+  }
+
+  /**
+   * 生成直接回复（用于闲聊/问候）
+   */
+  private static async generateDirectResponse(question: string, intent: string): Promise<string> {
+    const llm = Settings.llm;
+    
+    const responsePrompt = intent === 'greeting'
+      ? `用户说: "${question}"
+请用友好的中文回复问候，并简单介绍你是一个智能知识库助手，可以帮用户查询知识库内容、总结文档、画流程图等。回复要简洁自然。`
+      : `用户说: "${question}"
+请用友好的中文回复，保持简洁自然。你是一个智能知识库助手。`;
+
+    try {
+      const response = await llm.complete({ prompt: responsePrompt });
+      return response.text.trim();
+    } catch (error) {
+      return intent === 'greeting' 
+        ? '你好！我是智能知识库助手，可以帮你查询知识库内容、总结文档、画流程图等。有什么可以帮你的吗？'
+        : '好的，有什么我可以帮你的吗？';
+    }
+  }
+
   /**
    * Agentic RAG 模式查询
    * @param chatHistory 对话历史，用于多轮对话上下文
@@ -328,6 +519,30 @@ export class LLMService {
     console.log(`[LLM] Agentic Query: "${question}" in KB ${knowledgeBaseId}`);
     console.log(`[LLM] Chat history: ${chatHistory.length} messages`);
     const startTime = Date.now();
+
+    // ========== 第一步：意图判断 ==========
+    console.log(`[LLM] ════════════════════════════════════════════════════════`);
+    console.log(`[LLM] 🎯 Step 1: Intent Analysis...`);
+    
+    const intentResult = await this.analyzeIntent(question);
+    console.log(`[LLM] 🎯 Intent: ${intentResult.intent}`);
+    console.log(`[LLM] 🎯 Needs KB: ${intentResult.needsKnowledgeBase}`);
+    console.log(`[LLM] 🎯 Keywords: ${intentResult.keywords.join(', ')}`);
+    console.log(`[LLM] 🎯 Suggested Tool: ${intentResult.suggestedTool || 'none'}`);
+    
+    // 如果是闲聊/问候，直接回复，不走 Agent
+    if (intentResult.intent === 'greeting' || intentResult.intent === 'small_talk') {
+      console.log(`[LLM] 🎯 Direct response for ${intentResult.intent}, skipping Agent`);
+      const directResponse = await this.generateDirectResponse(question, intentResult.intent);
+      return {
+        answer: directResponse,
+        thinking: [`🎯 意图识别: ${intentResult.intent}，直接回复`],
+        sourceNodes: [],
+        isAgentic: true,
+      };
+    }
+    
+    console.log(`[LLM] ════════════════════════════════════════════════════════`);
 
     console.log(`[LLM] Loading index for agent...`);
     const index = await this.loadIndex(knowledgeBaseId);
@@ -355,6 +570,7 @@ export class LLMService {
     // 使用 FunctionTool 包装一个总结功能
     const summarizeTool = FunctionTool.from(
       async ({ topic }: { topic: string }): Promise<string> => {
+        console.log(`[LLM] ────────────────────────────────────────────────────────`);
         console.log(`[LLM] 📋 Summarize tool called with topic: "${topic}"`);
         
         // 先深度检索相关内容
@@ -363,8 +579,11 @@ export class LLMService {
           query: `总结关于 "${topic}" 的所有内容，包括定义、特点、应用场景等。`,
         });
         
-        console.log(`[LLM] 📋 Summarize result length: ${result.response?.length || 0} chars`);
-        return result.response || '未找到相关内容';
+        const response = result.response || '未找到相关内容';
+        console.log(`[LLM] 📋 Summarize result (${response.length} chars):`);
+        console.log(`[LLM] 📋 ${response.substring(0, 500)}${response.length > 500 ? '...' : ''}`);
+        console.log(`[LLM] ────────────────────────────────────────────────────────`);
+        return response;
       },
       {
         name: 'summarize_topic',
@@ -653,43 +872,216 @@ export class LLMService {
       }
     );
 
+    // ========== 工具 7: 生成可视化图表 ==========
+    const generateDiagramTool = FunctionTool.from(
+      async (params: { description: string; chartType?: string }): Promise<string> => {
+        const { description, chartType = 'flowchart' } = params;
+        console.log(`[LLM] 🎨 Generate diagram: "${description}", type: ${chartType}`);
+        
+        // 构建生成 Mermaid 的 prompt
+        const diagramPrompt = `你是一个图表生成专家。请根据描述生成 Mermaid 图表。
+
+## 用户描述
+${description}
+
+## 图表类型
+${chartType === 'sequenceDiagram' ? '时序图 (sequenceDiagram)' : '流程图 (flowchart)'}
+
+## 输出要求
+1. 直接输出 Mermaid 语法，不要代码块包裹
+2. 根据描述内容合理设计节点数量和结构
+3. 节点文本简洁清晰
+4. 禁止使用 \\n 换行符
+
+## 语法参考
+
+flowchart TD
+  A[步骤A] --> B[步骤B]
+  B --> C{判断}
+  C -->|是| D[处理D]
+  C -->|否| E[处理E]
+  D --> F((结束))
+  E --> F
+
+sequenceDiagram
+  participant A as 客户端
+  participant B as 服务器
+  A->>B: 请求
+  B-->>A: 响应
+
+请直接输出 Mermaid 语法：`;
+
+        try {
+          const llm = Settings.llm;
+          const response = await llm.complete({ prompt: diagramPrompt });
+          let mermaidSyntax = response.text.trim();
+          
+          // 使用 mermaid-cleaner 清洗语法
+          const cleanResult = cleanMermaidSyntax(mermaidSyntax);
+          
+          if (!cleanResult.success) {
+            console.log(`[LLM] 🎨 Mermaid clean failed: ${cleanResult.error}`);
+            return `图表生成失败: ${cleanResult.error}`;
+          }
+          
+          mermaidSyntax = cleanResult.data!;
+          console.log(`[LLM] 🎨 Generated Mermaid (${mermaidSyntax.length} chars):\n${mermaidSyntax}`);
+          
+          // 返回特殊格式，前端可以识别并渲染
+          return `[MERMAID_DIAGRAM]\n${mermaidSyntax}\n[/MERMAID_DIAGRAM]`;
+        } catch (error: any) {
+          console.error(`[LLM] 🎨 Generate diagram failed: ${error.message}`);
+          return `图表生成失败: ${error.message}`;
+        }
+      },
+      {
+        name: 'generate_diagram',
+        description: '生成可视化图表（流程图、架构图、时序图等）。调用前建议先用 search_knowledge 或 web_search 了解主题详情，再基于收集的信息生成图表。',
+        parameters: {
+          type: 'object',
+          properties: {
+            description: {
+              type: 'string',
+              description: '图表内容描述，包括要展示的组件、步骤、关系等',
+            },
+            chartType: {
+              type: 'string',
+              enum: ['flowchart', 'sequenceDiagram'],
+              description: '图表类型：flowchart（流程图/架构图）或 sequenceDiagram（时序图）',
+            },
+          },
+          required: ['description'],
+        },
+      }
+    );
+
     // ========== System Prompt ==========
-    const systemPrompt = `你是一个智能知识库助手，擅长深度分析和准确回答问题。
+    const systemPrompt = `你是一个智能知识库助手。你的任务是基于用户上传的知识库文档回答问题。
 
-你有以下工具可以使用：
-1. search_knowledge - 精准检索，返回 3 个最相关的文档片段
-2. deep_search - 深度检索，返回 8 个相关文档片段，适合需要全面了解的问题
-3. summarize_topic - 主题总结，输入关键词，返回该主题的全面总结
-4. web_search - 网络搜索，当知识库没有答案时搜索互联网，返回搜索结果摘要
-5. get_current_datetime - 获取当前日期时间，用于回答"今天几号"、"现在几点"等问题
-6. fetch_webpage - 网页抓取，获取指定 URL 的完整网页内容
+## 可用工具
+1. search_knowledge - 精准检索（查找具体信息）
+2. deep_search - 深度检索（获取更多上下文）
+3. summarize_topic - 主题/文档总结（用于"xxx讲了什么"、"总结xxx"类问题）
+4. web_search - 网络搜索（仅当知识库确实没有时使用）
+5. get_current_datetime - 获取当前日期时间
+6. fetch_webpage - 网页抓取
+7. generate_diagram - 生成可视化图表
 
-工作策略：
-- 简单问题（如"什么是X"）：使用 search_knowledge
-- 复杂问题（如"对比A和B"）：先用 search_knowledge 查 A，再查 B，然后综合回答
-- 总结类问题（如"总结X的内容"）：使用 summarize_topic
-- 需要全面信息时：使用 deep_search
-- 日期时间问题（如"今天几号"、"现在几点"、"星期几"）：直接使用 get_current_datetime
-- 知识库没有答案或需要最新信息时：先用 web_search 搜索，如果摘要不够详细，再用 fetch_webpage 抓取具体网页
+## 意图判断与工具选择
 
-回答要求：
-- 用中文回答
-- 答案要准确、完整、有条理
-- 如果知识库中没有相关信息，必须使用 web_search 搜索互联网
-- 如果搜索结果摘要不够详细，必须使用 fetch_webpage 抓取网页内容
-- 不要说"我无法提供"，要主动尝试使用工具获取信息
-- 对于日期、时间相关问题，优先使用 get_current_datetime 工具
-- 对于天气、新闻、股票等实时信息，必须使用 web_search 获取最新数据`;
+**文档/书籍总结类问题：**
+- "xxx讲了什么" / "总结一下xxx" / "xxx的主要内容" → 使用 summarize_topic
+- 示例：用户问"Agents_v8.pdf讲了什么" → summarize_topic("Agents_v8")
+
+**具体信息查询：**
+- "xxx是什么" / "如何做xxx" / "xxx的定义" → 使用 search_knowledge 或 deep_search
+
+**画图请求：**
+- "画个xxx图" / "生成流程图" → 先用 search_knowledge 获取内容，再用 generate_diagram
+
+**网络搜索（最后手段）：**
+- 只有当问题明显与知识库无关（如天气、新闻）时才使用 web_search
+
+## ⚠️ 重要规则
+1. **必须用中文回答**
+2. **优先使用知识库工具**，禁止跳过检索直接回答
+3. 回答要详细、有条理，基于知识库内容
+4. 如果知识库有相关内容，禁止使用网络搜索`;
 
     // 创建 ReAct Agent，配备工具
-    console.log(`[LLM] Creating ReAct Agent with 6 tools...`);
+    console.log(`[LLM] Creating ReAct Agent with 7 tools...`);
     console.log(`[LLM]   - search_knowledge: 精准检索 (Top-3)`);
     console.log(`[LLM]   - deep_search: 深度检索 (Top-8)`);
     console.log(`[LLM]   - summarize_topic: 主题总结 (Top-10)`);
     console.log(`[LLM]   - web_search: 网络搜索 (SearXNG)`);
     console.log(`[LLM]   - get_current_datetime: 获取当前日期时间`);
     console.log(`[LLM]   - fetch_webpage: 网页抓取`);
+    console.log(`[LLM]   - generate_diagram: 生成可视化图表`);
     
+    // ========== 初始化执行链路 ==========
+    const trace: ExecutionTrace = {
+      question,
+      intent: {
+        type: intentResult.intent,
+        description: this.intentTypes[intentResult.intent as keyof typeof this.intentTypes] || '未知',
+        keywords: intentResult.keywords,
+        suggestedTool: intentResult.suggestedTool,
+      },
+      preSearch: {
+        executed: false,
+        query: '',
+        results: [],
+      },
+      toolCalls: [],
+      answer: '',
+    };
+
+    // ========== 根据意图决定是否预检索知识库 ==========
+    console.log(`[LLM] ────────────────────────────────────────────────────────`);
+    let knowledgeContext = '';
+    
+    if (intentResult.needsKnowledgeBase) {
+      console.log(`[LLM] 📚 Pre-fetching from knowledge base...`);
+      
+      // 使用意图分析中的关键词优化检索查询
+      const searchQuery = intentResult.keywords.length > 0 
+        ? intentResult.keywords.join(' ') + ' ' + question
+        : question;
+      console.log(`[LLM] 📚 Search query: "${searchQuery}"`);
+      
+      trace.preSearch.executed = true;
+      trace.preSearch.query = searchQuery;
+      
+      const preSearchEngine = index.asQueryEngine({ similarityTopK: 5 });
+      const preSearchResult = await preSearchEngine.query({ query: searchQuery });
+      
+      if (preSearchResult.sourceNodes && preSearchResult.sourceNodes.length > 0) {
+        console.log(`[LLM] 📚 Found ${preSearchResult.sourceNodes.length} relevant documents:`);
+        const sources = preSearchResult.sourceNodes.map((node: any, i: number) => {
+          const text = node.node?.text || node.node?.getContent?.() || '';
+          const docName = node.node?.metadata?.documentName || '未知文档';
+          const score = parseFloat(node.score?.toFixed(3) || '0');
+          console.log(`[LLM] 📚   [${i + 1}] ${docName} (score: ${score})`);
+          console.log(`[LLM] 📚       ${text.substring(0, 100).replace(/\n/g, ' ')}...`);
+          
+          // 收集到 trace
+          trace.preSearch.results.push({
+            docName,
+            preview: text.substring(0, 200),
+            score,
+          });
+          
+          return `[来源${i + 1}: ${docName}]\n${text.substring(0, 500)}`;
+        });
+        knowledgeContext = sources.join('\n\n');
+      } else {
+        console.log(`[LLM] 📚 No relevant documents found in knowledge base`);
+      }
+    } else {
+      console.log(`[LLM] 📚 Skipping pre-fetch (intent: ${intentResult.intent})`);
+    }
+    console.log(`[LLM] ────────────────────────────────────────────────────────`);
+
+    // 将知识库内容和意图信息注入到问题中
+    let enrichedQuestion = question;
+    
+    if (knowledgeContext) {
+      enrichedQuestion = `## 知识库检索结果（必须基于以下内容回答）：\n${knowledgeContext}\n\n`;
+    }
+    
+    // 根据意图添加提示
+    if (intentResult.suggestedTool) {
+      enrichedQuestion += `## 意图分析：\n- 用户意图: ${intentResult.intent}\n- 建议使用工具: ${intentResult.suggestedTool}\n- 关键词: ${intentResult.keywords.join(', ') || '无'}\n\n`;
+    }
+    
+    enrichedQuestion += `## 用户问题：\n${question}\n\n`;
+    
+    if (knowledgeContext) {
+      enrichedQuestion += `请基于上述知识库内容用中文回答问题。必须使用知识库内容，不要编造信息。`;
+    } else {
+      enrichedQuestion += `请用中文回答问题。`;
+    }
+
     // 将对话历史转换为 LlamaIndex 格式
     const llamaHistory = chatHistory.slice(-6).map(msg => ({
       role: msg.role,
@@ -697,7 +1089,7 @@ export class LLMService {
     }));
 
     const agent = new ReActAgent({
-      tools: [searchTool, deepSearchTool, summarizeTool, webSearchTool, dateTimeTool, fetchWebpageTool],
+      tools: [searchTool, deepSearchTool, summarizeTool, webSearchTool, dateTimeTool, fetchWebpageTool, generateDiagramTool],
       chatHistory: llamaHistory, // 传入对话历史
       verbose: true, // 日志显示思考过程
     });
@@ -705,7 +1097,7 @@ export class LLMService {
     // Agent 执行查询
     console.log(`[LLM] Agent thinking and executing...`);
     console.log(`[LLM] ════════════════════════════════════════════════════════`);
-    const response = await agent.chat({ message: question });
+    const response = await agent.chat({ message: enrichedQuestion });
 
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log(`[LLM] ════════════════════════════════════════════════════════`);
@@ -727,16 +1119,122 @@ export class LLMService {
       });
     }
 
-    // 解析 Agent 输出，提取思考过程和最终答案
-    const { thinking, answer } = parseAgentOutput(response.response || '');
+    // 解析 Agent 输出，提取思考过程、最终答案和工具调用记录
+    let { thinking, answer, toolCalls } = parseAgentOutput(response.response || '');
+    
+    // 更新执行链路
+    trace.toolCalls = toolCalls;
+    trace.answer = answer;
     
     console.log(`[LLM] Thinking steps: ${thinking.length}`);
     thinking.forEach((step, i) => console.log(`[LLM]   ${i + 1}. ${step}`));
+    console.log(`[LLM] Tool calls: ${toolCalls.length}`);
+    toolCalls.forEach((call, i) => {
+      console.log(`[LLM]   🔧 [${i + 1}] ${call.tool}(${call.input.substring(0, 50)}${call.input.length > 50 ? '...' : ''})`);
+      if (call.output) {
+        console.log(`[LLM]       → ${call.output.substring(0, 80)}${call.output.length > 80 ? '...' : ''}`);
+      }
+    });
     console.log(`[LLM] Final answer length: ${answer.length} chars`);
+
+    // ========== LLM 质量评估（宽松模式）==========
+    const llm = Settings.llm;
+    let qualityPassed = false;
+    let lastIssue = '';
+    
+    // 构建简洁的评估上下文
+    const evalContext = {
+      question: trace.question,
+      intent: trace.intent.type,
+      hasPreSearch: trace.preSearch.executed,
+      preSearchCount: trace.preSearch.results.length,
+      toolsCalled: trace.toolCalls.map(c => c.tool),
+      answerLength: answer.length,
+      hasDiagram: answer.includes('```mermaid') || answer.includes('flowchart')
+    };
+    
+    console.log(`[LLM] 📊 Quality evaluation...`);
+    
+    const evalPrompt = `请评估 AI 回答的质量。
+
+【上下文】
+- 用户问题: "${evalContext.question}"
+- 用户意图: ${evalContext.intent}
+- 预检索: ${evalContext.hasPreSearch ? `是（${evalContext.preSearchCount}条）` : '否'}
+- 调用工具: ${evalContext.toolsCalled.length > 0 ? evalContext.toolsCalled.join(', ') : '无'}
+- 回答长度: ${evalContext.answerLength} 字符
+${evalContext.intent === 'draw_diagram' ? `- 包含图表: ${evalContext.hasDiagram ? '是' : '否'}` : ''}
+
+【回答内容】
+${answer.substring(0, 1500)}${answer.length > 1500 ? '...(截断)' : ''}
+
+【评估标准 - 宽松模式】
+✅ 通过条件（满足以下任一即可）：
+1. 回答内容详细（>200字）且切题
+2. 成功使用工具获取信息并回答
+3. 图表问题生成了 mermaid 代码
+4. 回答有实质内容，非敷衍
+
+❌ 不通过条件（必须全部满足才 fail）：
+1. 回答完全跑题或答非所问
+2. 回答是空话套话，无实质信息
+3. 图表问题但没有生成任何图表代码
+
+⚠️ 重要提醒：
+- Agent 调用工具（如 summarize_topic、search_knowledge）获取的内容都是真实的知识库数据，不算编造
+- 只要回答基于工具结果，即使内容很多也是合理的
+- 宁可通过，不要误杀
+
+【输出格式】
+只输出 JSON：{"pass": true/false, "reason": "一句话理由"}`;
+
+    try {
+      const evalResponse = await llm.complete({ prompt: evalPrompt });
+      const evalText = evalResponse.text.trim();
+      console.log(`[LLM] 📊 Eval: ${evalText}`);
+      
+      const jsonMatch = evalText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const evalResult = JSON.parse(jsonMatch[0]);
+        
+        if (evalResult.pass) {
+          console.log(`[LLM] 📊 Quality: ✅ PASS`);
+          qualityPassed = true;
+        } else {
+          lastIssue = evalResult.reason;
+          console.log(`[LLM] 📊 Quality issue: ${lastIssue}`);
+          
+          // 只重试一次
+          console.log(`[LLM] 📊 Retrying once...`);
+          const retryResponse = await agent.chat({ 
+            message: `请改进你的回答：${lastIssue}。提供更详细、更有价值的内容。` 
+          });
+          
+          const retryParsed = parseAgentOutput(retryResponse.response || '');
+          if (retryParsed.answer && retryParsed.answer.length >= answer.length * 0.8) {
+            answer = retryParsed.answer;
+            thinking = [...thinking, ...retryParsed.thinking];
+            qualityPassed = true; // 重试后直接通过
+            console.log(`[LLM] 📊 Retry done, new answer length: ${answer.length} chars`);
+          }
+        }
+      } else {
+        qualityPassed = true; // 解析失败时通过
+      }
+    } catch (evalError) {
+      console.log(`[LLM] 📊 Eval error (ignored): ${evalError}`);
+      qualityPassed = true; // 评估出错时通过
+    }
+    
+    // 兜底：如果还没通过，但回答有一定长度，也通过
+    if (!qualityPassed && answer.length > 100) {
+      console.log(`[LLM] 📊 Fallback pass: answer length ${answer.length} > 100`);
+      qualityPassed = true;
+    }
 
     return {
       answer: answer,
-      thinking: thinking, // 思考过程，供前端展示
+      thinking: thinking,
       sourceNodes: response.sourceNodes?.map((node: any) => ({
         text: node.node?.text || node.node?.getContent?.() || '',
         score: node.score,

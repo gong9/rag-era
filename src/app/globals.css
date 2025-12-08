@@ -81,3 +81,21 @@
 .animate-beam {
   animation: beam-slide 8s infinite linear;
 }
+
+/* Excalidraw 自定义样式 - 隐藏底部菜单栏 */
+.excalidraw .layer-ui__wrapper__footer {
+  display: none !important;
+}
+.excalidraw .App-menu {
+  display: none !important;
+}
+.excalidraw .footer-center {
+  display: none !important;
+}
+.excalidraw .Island {
+  display: none !important;
+}
+/* 保留顶部工具栏的样式（如果需要的话） */
+.excalidraw .layer-ui__wrapper__top-right {
+  display: none !important;
+}
