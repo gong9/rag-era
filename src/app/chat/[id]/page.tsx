@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -79,6 +80,7 @@ const TypewriterText = ({ text, onComplete }: { text: string; onComplete?: () =>
 };
 
 export default function ChatPage() {
+  const { data: session } = useSession();
   const params = useParams();
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -409,10 +411,10 @@ export default function ChatPage() {
           <div className="p-3 border-t border-zinc-200">
              <div className="flex items-center gap-3 px-2 py-2 text-zinc-500 hover:bg-zinc-200/50 rounded-lg transition-colors cursor-pointer">
                 <div className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center text-white text-xs font-bold">
-                  U
+                  {session?.user?.name?.[0]?.toUpperCase() || 'U'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-zinc-900 truncate">用户</p>
+                  <p className="text-sm font-medium text-zinc-900 truncate">{session?.user?.name || '用户'}</p>
                 </div>
              </div>
           </div>
