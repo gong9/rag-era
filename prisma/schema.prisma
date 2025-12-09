@@ -28,6 +28,7 @@ model KnowledgeBase {
   documents   Document[]
   chatSessions ChatSession[]
   chatHistories ChatHistory[]
+  evalRuns    EvalRun[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
@@ -81,5 +82,50 @@ model ChatHistory {
   @@index([sessionId])
   @@index([knowledgeBaseId])
   @@index([userId])
+}
+
+// ==================== RAG 评估系统 ====================
+
+model EvalRun {
+  id              String        @id @default(uuid())
+  knowledgeBaseId String
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  status          String        @default("pending") // pending | running | completed | failed
+  totalQuestions  Int           @default(0)
+  completedCount  Int           @default(0)
+  avgRetrievalScore Float?
+  avgFaithScore     Float?
+  avgQualityScore   Float?
+  avgToolScore      Float?
+  avgOverallScore   Float?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  results         EvalResult[]
+
+  @@index([knowledgeBaseId])
+  @@index([status])
+}
+
+model EvalResult {
+  id              String   @id @default(uuid())
+  evalRunId       String
+  evalRun         EvalRun  @relation(fields: [evalRunId], references: [id], onDelete: Cascade)
+  questionId      String   // 对应 eval.json 中的 id
+  question        String
+  answer          String
+  retrievedContent String? // 检索到的内容
+  toolsCalled     String?  // JSON: 调用的工具列表
+  retrievalScore  Float    @default(0) // 0-5 检索相关性
+  faithScore      Float    @default(0) // 0-5 忠实度
+  qualityScore    Float    @default(0) // 0-5 答案质量
+  toolScore       Float    @default(0) // 0-5 工具调用准确性
+  avgScore        Float    @default(0) // 平均分
+  retrievalReason String?  // 检索评分理由
+  faithReason     String?  // 忠实度评分理由
+  qualityReason   String?  // 质量评分理由
+  toolReason      String?  // 工具评分理由
+  createdAt       DateTime @default(now())
+
+  @@index([evalRunId])
 }
 

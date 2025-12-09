@@ -738,11 +738,13 @@ ${contextStr}
         });
         
         if (results.length === 0) {
+          actualToolCalls.push({ tool: 'search_knowledge', input: query, output: '未找到相关内容' });
           return '未找到相关内容';
         }
         
         const formatted = formatSearchResults(results, 3);
         console.log(`[LLM] 🔍 Found ${results.length} results (showing top 3)`);
+        actualToolCalls.push({ tool: 'search_knowledge', input: query, output: formatted.substring(0, 200) });
         return formatted;
       },
       {
@@ -769,11 +771,13 @@ ${contextStr}
         });
         
         if (results.length === 0) {
+          actualToolCalls.push({ tool: 'deep_search', input: query, output: '未找到相关内容' });
           return '未找到相关内容';
         }
         
         const formatted = formatSearchResults(results, 8);
         console.log(`[LLM] 📚 Found ${results.length} results (showing top 8)`);
+        actualToolCalls.push({ tool: 'deep_search', input: query, output: formatted.substring(0, 200) });
         return formatted;
       },
       {
@@ -888,18 +892,31 @@ ${contextStr}
     );
 
     // ========== 工具 4: 网络搜索 ==========
+    // 追踪无效调用次数，防止死循环
+    let webSearchInvalidCount = 0;
+    const MAX_INVALID_CALLS = 3;
+    
     const webSearchTool = FunctionTool.from(
       async (params: { query: string } | string): Promise<string> => {
         // 兼容不同的参数格式
         let query: string;
-        if (typeof params === 'string') {
-          query = params;
-        } else if (params && typeof params === 'object' && params.query) {
-          query = params.query;
+        if (typeof params === 'string' && params.trim()) {
+          query = params.trim();
+        } else if (params && typeof params === 'object' && params.query && params.query.trim()) {
+          query = params.query.trim();
         } else {
-          console.log(`[LLM] 🌐 Web search: invalid params`, params);
-          return '搜索参数无效';
+          webSearchInvalidCount++;
+          console.log(`[LLM] 🌐 Web search: invalid params (${webSearchInvalidCount}/${MAX_INVALID_CALLS})`, params);
+          
+          if (webSearchInvalidCount >= MAX_INVALID_CALLS) {
+            // 达到最大无效调用次数，返回强停止信号
+            return '[ERROR] 网络搜索工具调用失败次数过多，请停止调用此工具，直接基于已有信息回答。';
+          }
+          return '搜索参数无效，请提供有效的搜索关键词，格式为 {"query": "搜索内容"}';
         }
+        
+        // 有效调用，重置计数器
+        webSearchInvalidCount = 0;
         
         console.log(`[LLM] 🌐 Web search: original query "${query}"`);
         
@@ -1063,6 +1080,7 @@ ${contextStr}
 - 今天是 ${year} 年的第 ${weekNumber} 周`;
         
         console.log(`[LLM] 📅 DateTime tool called, result: ${formatted}`);
+        actualToolCalls.push({ tool: 'get_current_datetime', input: '', output: result });
         return result;
       },
       {
@@ -1167,7 +1185,9 @@ ${contextStr}
         // 校验：description 必须有有效内容
         if (!description || description === 'undefined' || description.length < 20) {
           console.log(`[LLM] 🎨 ❌ Invalid description, length: ${description?.length || 0}`);
-          return `图表生成失败：description 参数无效或内容太短。请先使用 deep_search 或 summarize_topic 获取详细内容，然后将内容作为 description 传入。`;
+          const errMsg = `图表生成失败：description 参数无效或内容太短。请先使用 deep_search 或 summarize_topic 获取详细内容，然后将内容作为 description 传入。`;
+          actualToolCalls.push({ tool: 'generate_diagram', input: description || '', output: errMsg });
+          return errMsg;
         }
         
         try {
@@ -1233,7 +1253,9 @@ flowchart TD
           
           if (!cleanResult.success) {
             console.log(`[LLM] 🎨 Mermaid clean failed: ${cleanResult.error}`);
-            return `图表生成失败: ${cleanResult.error}`;
+            const errMsg = `图表生成失败: ${cleanResult.error}`;
+            actualToolCalls.push({ tool: 'generate_diagram', input: description.substring(0, 100), output: errMsg });
+            return errMsg;
           }
           
           mermaidSyntax = cleanResult.data!;
@@ -1241,16 +1263,20 @@ flowchart TD
           
           // 返回特殊格式，前端可以识别并渲染
           // 同时告诉 Agent 直接使用这个结果
-          return `图表已生成成功！请直接将以下内容作为回答（不要修改）：
+          const result = `图表已生成成功！请直接将以下内容作为回答（不要修改）：
 
 [MERMAID_DIAGRAM]
 ${mermaidSyntax}
 [/MERMAID_DIAGRAM]
 
 请直接输出上面的内容，不要用其他格式。`;
+          actualToolCalls.push({ tool: 'generate_diagram', input: description.substring(0, 100), output: '图表生成成功' });
+          return result;
         } catch (error: any) {
           console.error(`[LLM] 🎨 Generate diagram failed: ${error.message}`);
-          return `图表生成失败: ${error.message}`;
+          const errMsg = `图表生成失败: ${error.message}`;
+          actualToolCalls.push({ tool: 'generate_diagram', input: description?.substring(0, 100) || '', output: errMsg });
+          return errMsg;
         }
       },
       {
@@ -1341,6 +1367,9 @@ ${mermaidSyntax}
       toolCalls: [],
       answer: '',
     };
+    
+    // 实际工具调用记录（工具函数中直接记录，比从输出解析更可靠）
+    const actualToolCalls: ToolCall[] = [];
 
     // ========== 根据意图决定是否预检索知识库 ==========
     console.log(`[LLM] ────────────────────────────────────────────────────────`);
@@ -1460,7 +1489,11 @@ ${mermaidSyntax}
     }
 
     // 解析 Agent 输出，提取思考过程、最终答案和工具调用记录
-    let { thinking, answer, toolCalls } = parseAgentOutput(response.response || '');
+    let { thinking, answer, toolCalls: parsedToolCalls } = parseAgentOutput(response.response || '');
+    
+    // 合并工具调用：优先使用 actualToolCalls（工具函数直接记录，更可靠）
+    // 如果 actualToolCalls 为空，则使用从输出解析的 parsedToolCalls
+    const toolCalls = actualToolCalls.length > 0 ? actualToolCalls : parsedToolCalls;
     
     // 更新执行链路
     trace.toolCalls = toolCalls;
@@ -1468,7 +1501,7 @@ ${mermaidSyntax}
     
     console.log(`[LLM] Thinking steps: ${thinking.length}`);
     thinking.forEach((step, i) => console.log(`[LLM]   ${i + 1}. ${step}`));
-    console.log(`[LLM] Tool calls: ${toolCalls.length}`);
+    console.log(`[LLM] Tool calls: ${toolCalls.length} (actual: ${actualToolCalls.length}, parsed: ${parsedToolCalls.length})`);
     toolCalls.forEach((call, i) => {
       console.log(`[LLM]   🔧 [${i + 1}] ${call.tool}(${call.input.substring(0, 50)}${call.input.length > 50 ? '...' : ''})`);
       if (call.output) {
@@ -1576,6 +1609,7 @@ ${answer.substring(0, 2500)}${answer.length > 2500 ? '...(截断)' : ''}
               console.log(`[LLM] 📊 Retrying (${retryCount}/${MAX_RETRIES})...`);
               
               // 重试时提供完整上下文，避免 Agent 不知道原始问题
+              // 注意：重试时不要使用网络搜索，只基于已有知识库内容
               const retryMessage = `请改进你的回答。
 
 【问题】${lastIssue}
@@ -1585,9 +1619,18 @@ ${answer.substring(0, 2500)}${answer.length > 2500 ? '...(截断)' : ''}
 【已知信息】
 ${knowledgeContext || '无预检索内容'}
 
-请重新生成，特别注意逻辑顺序：前置准备→核心步骤→后续处理。`;
+请重新生成，特别注意逻辑顺序：前置准备→核心步骤→后续处理。
+注意：请直接基于已有信息回答，不要调用网络搜索工具。`;
               
-              const retryResponse = await agent.chat({ message: retryMessage });
+              // 添加 30 秒超时保护，防止死循环
+              const RETRY_TIMEOUT = 30000;
+              try {
+                const retryResponse = await Promise.race([
+                  agent.chat({ message: retryMessage }),
+                  new Promise<never>((_, reject) => 
+                    setTimeout(() => reject(new Error('Retry timeout')), RETRY_TIMEOUT)
+                  )
+                ]);
               
               const retryParsed = parseAgentOutput(retryResponse.response || '');
               if (retryParsed.answer && retryParsed.answer.length > 50) {
@@ -1597,6 +1640,10 @@ ${knowledgeContext || '无预检索内容'}
               } else {
                 console.log(`[LLM] 📊 Retry failed, keeping previous answer`);
                 break; // 重试结果太短，停止重试
+                }
+              } catch (retryError: any) {
+                console.log(`[LLM] 📊 Retry error: ${retryError.message}, keeping previous answer`);
+                break; // 重试超时或出错，停止重试
               }
             }
           }
@@ -1655,6 +1702,9 @@ ${knowledgeContext || '无预检索内容'}
         score: node.score,
         metadata: node.node?.metadata,
       })) || [],
+      // 新增：返回检索内容供评估使用
+      retrievedContent: knowledgeContext || '',
+      toolCalls: trace.toolCalls,
       isAgentic: true,
     };
   }

@@ -6,7 +6,7 @@ import { signOut, useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { BookOpen, LogOut, Plus, Trash2, MessageSquare, Search, FileText, ChevronRight, BarChart3, Database, Clock, Command } from 'lucide-react';
+import { BookOpen, LogOut, Plus, Trash2, MessageSquare, Search, FileText, ChevronRight, BarChart3, Database, Clock, Command, FlaskConical } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -163,6 +163,14 @@ export default function DashboardPage() {
                 <span className="font-semibold text-zinc-900">{totalDocuments}</span>
               </div>
             </Card>
+            <Button 
+              onClick={() => router.push('/dashboard/eval')} 
+              variant="outline"
+              className="border-violet-200 text-violet-600 hover:bg-violet-50 transition-all"
+            >
+              <FlaskConical className="w-4 h-4 mr-2" />
+              评估
+            </Button>
             <Button 
               onClick={() => setShowCreateForm(true)} 
               className="bg-zinc-900 hover:bg-zinc-800 text-white shadow-lg shadow-zinc-200 transition-all hover:-translate-y-0.5"

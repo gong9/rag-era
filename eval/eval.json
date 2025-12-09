@@ -1,0 +1,73 @@
+[
+  {
+    "id": "q1",
+    "question": "体检前需要做哪些准备？",
+    "expectedIntent": "knowledge_query",
+    "expectedTools": ["search_knowledge"],
+    "keywords": ["体检", "准备", "禁食"]
+  },
+  {
+    "id": "q2",
+    "question": "体检当天的流程是什么？",
+    "expectedIntent": "knowledge_query",
+    "expectedTools": ["search_knowledge", "deep_search"],
+    "keywords": ["体检", "流程", "当天"]
+  },
+  {
+    "id": "q3",
+    "question": "画一个体检的流程图",
+    "expectedIntent": "draw_diagram",
+    "expectedTools": ["deep_search", "generate_diagram"],
+    "keywords": ["体检", "流程图"]
+  },
+  {
+    "id": "q4",
+    "question": "总结一下知识库中的文档内容",
+    "expectedIntent": "document_summary",
+    "expectedTools": ["summarize_topic"],
+    "keywords": ["总结", "文档"]
+  },
+  {
+    "id": "q5",
+    "question": "体检有哪些注意事项？",
+    "expectedIntent": "knowledge_query",
+    "expectedTools": ["search_knowledge"],
+    "keywords": ["体检", "注意事项"]
+  },
+  {
+    "id": "q6",
+    "question": "今天是几号？",
+    "expectedIntent": "datetime",
+    "expectedTools": ["get_current_datetime"],
+    "keywords": ["今天", "日期"]
+  },
+  {
+    "id": "q7",
+    "question": "什么是 Agent？",
+    "expectedIntent": "knowledge_query",
+    "expectedTools": ["search_knowledge"],
+    "keywords": ["Agent", "定义"]
+  },
+  {
+    "id": "q8",
+    "question": "体检报告什么时候能拿到？",
+    "expectedIntent": "knowledge_query",
+    "expectedTools": ["search_knowledge"],
+    "keywords": ["体检报告", "时间"]
+  },
+  {
+    "id": "q9",
+    "question": "女性体检有什么特殊要求？",
+    "expectedIntent": "knowledge_query",
+    "expectedTools": ["search_knowledge"],
+    "keywords": ["女性", "体检", "要求"]
+  },
+  {
+    "id": "q10",
+    "question": "体检前可以喝水吗？",
+    "expectedIntent": "knowledge_query",
+    "expectedTools": ["search_knowledge"],
+    "keywords": ["体检", "喝水", "禁食"]
+  }
+]
+
