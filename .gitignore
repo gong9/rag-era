@@ -39,3 +39,6 @@ next-env.d.ts
 /data
 /prisma/dev.db
 /prisma/dev.db-journal
+
+# meilisearch
+/meilisearch-data

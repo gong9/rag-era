@@ -138,6 +138,12 @@ export default function KnowledgeBaseDetailPage() {
         });
       });
       
+      // 心跳事件 - 保持连接活跃
+      eventSource.addEventListener('heartbeat', (e) => {
+        const data = JSON.parse(e.data);
+        console.log('[SSE] Heartbeat:', data.progress);
+      });
+      
       eventSource.addEventListener('complete', (e) => {
         const data = JSON.parse(e.data);
         console.log('[SSE] Complete:', data);
@@ -271,7 +277,16 @@ export default function KnowledgeBaseDetailPage() {
               <span className="text-[10px] text-gray-500 mt-1 font-mono tracking-wide uppercase">ID: {kb.id.slice(0, 8)}</span>
             </div>
           </div>
-          <Button onClick={() => router.push(`/chat/${kb.id}`)} className="bg-black hover:bg-gray-800 text-white shadow-sm transition-all text-sm h-9 px-4 rounded-full">
+          <Button 
+            onClick={() => router.push(`/chat/${kb.id}`)} 
+            disabled={kb.documents.length === 0}
+            className={`shadow-sm transition-all text-sm h-9 px-4 rounded-full ${
+              kb.documents.length === 0 
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                : 'bg-black hover:bg-gray-800 text-white'
+            }`}
+            title={kb.documents.length === 0 ? '请先上传文档' : '开始与知识库对话'}
+          >
             开始对话
           </Button>
         </div>

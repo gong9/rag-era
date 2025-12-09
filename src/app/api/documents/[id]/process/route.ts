@@ -43,6 +43,16 @@ export async function GET(
           controller.enqueue(encoder.encode(message));
         };
 
+        // 心跳定时器，每 5 秒发送一次心跳，防止连接超时
+        let lastProgress = 0;
+        const heartbeatInterval = setInterval(() => {
+          sendEvent('heartbeat', { 
+            status: 'processing', 
+            message: '处理中...',
+            progress: lastProgress
+          });
+        }, 5000);
+
         try {
           // 更新状态为处理中
           await prisma.document.update({
@@ -55,6 +65,7 @@ export async function GET(
             message: '开始处理文档...',
             progress: 10
           });
+          lastProgress = 10;
 
           // 获取上传目录
           const uploadDir = path.join(
@@ -67,16 +78,18 @@ export async function GET(
             message: '正在创建向量索引...',
             progress: 30
           });
+          lastProgress = 30;
 
           // 创建或更新索引（带进度回调）
           await LLMService.createOrUpdateIndex(
             document.knowledgeBaseId,
             uploadDir,
             (progress: number, message: string) => {
+              lastProgress = 30 + (progress / 100) * 60;
               sendEvent('status', { 
                 status: 'processing', 
                 message,
-                progress: 30 + (progress / 100) * 60 // 30-90%
+                progress: lastProgress
               });
             }
           );
@@ -93,6 +106,9 @@ export async function GET(
             data: { status: 'completed' },
           });
 
+          // 清除心跳定时器
+          clearInterval(heartbeatInterval);
+
           sendEvent('complete', { 
             status: 'completed', 
             message: '文档处理完成！',
@@ -102,6 +118,9 @@ export async function GET(
           controller.close();
         } catch (error: any) {
           console.error('[Process] Error:', error);
+          
+          // 清除心跳定时器
+          clearInterval(heartbeatInterval);
           
           // 更新状态为失败
           await prisma.document.update({
