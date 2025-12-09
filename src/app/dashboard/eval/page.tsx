@@ -190,11 +190,16 @@ export default function EvalDashboardPage() {
         }));
         
         // 实时更新选中项的进度
-        setSelectedRun(prev => prev?.id === evalRunId ? {
-          ...prev,
-          completedCount: data.progress.completed,
-          totalQuestions: data.progress.total,
-        } : prev);
+        setSelectedRun(prev => {
+          if (prev && prev.id === evalRunId) {
+            return {
+              ...prev,
+              completedCount: data.progress.completed,
+              totalQuestions: data.progress.total,
+            };
+          }
+          return prev;
+        });
         
         // 实时更新列表中的进度
         setEvalRuns(prev => prev.map(run => 
