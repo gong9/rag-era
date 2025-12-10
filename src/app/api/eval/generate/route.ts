@@ -11,7 +11,7 @@ import { EvalGenerator } from '@/lib/eval-generator';
 
 /**
  * POST /api/eval/generate
- * 生成评估问题
+ * 生成评估问题（仅限当前用户的知识库）
  * 
  * Body: { knowledgeBaseId: string, count?: number }
  * Response: GeneratedQuestion[]
@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
+    const userId = (session.user as any).id;
     const body = await request.json();
     const { knowledgeBaseId, count = 10 } = body;
 
@@ -35,8 +36,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`[API] POST /api/eval/generate - KB: ${knowledgeBaseId}, Count: ${count}`);
 
-    // 生成评估问题
-    const questions = await EvalGenerator.generate(knowledgeBaseId, count);
+    // 生成评估问题（内部会验证知识库归属）
+    const questions = await EvalGenerator.generate(knowledgeBaseId, count, userId);
 
     console.log(`[API] Generated ${questions.length} questions`);
 

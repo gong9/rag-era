@@ -75,13 +75,20 @@ function getLLM(): OpenAI {
 export class EvalGenerator {
   /**
    * 获取知识库的文档内容
+   * @param knowledgeBaseId 知识库 ID
+   * @param userId 用户 ID（用于权限验证）
    */
-  static async getKnowledgeBaseContent(knowledgeBaseId: string): Promise<{
+  static async getKnowledgeBaseContent(knowledgeBaseId: string, userId?: string): Promise<{
     kbName: string;
     documents: Array<{ name: string; content: string }>;
   }> {
-    const kb = await prisma.knowledgeBase.findUnique({
-      where: { id: knowledgeBaseId },
+    const whereClause: any = { id: knowledgeBaseId };
+    if (userId) {
+      whereClause.userId = userId;
+    }
+
+    const kb = await prisma.knowledgeBase.findFirst({
+      where: whereClause,
       include: {
         documents: {
           where: { status: 'completed' },
@@ -91,7 +98,7 @@ export class EvalGenerator {
     });
 
     if (!kb) {
-      throw new Error(`知识库不存在: ${knowledgeBaseId}`);
+      throw new Error(`知识库不存在或无权访问: ${knowledgeBaseId}`);
     }
 
     if (kb.documents.length === 0) {
@@ -195,15 +202,17 @@ ${contentSummary}
    * 生成完整的评估问题集
    * @param knowledgeBaseId 知识库 ID
    * @param totalCount 总问题数（默认 10）
+   * @param userId 用户 ID（用于权限验证）
    */
   static async generate(
     knowledgeBaseId: string,
-    totalCount: number = 10
+    totalCount: number = 10,
+    userId?: string
   ): Promise<GeneratedQuestion[]> {
     console.log(`[EvalGenerator] Generating ${totalCount} questions for KB: ${knowledgeBaseId}`);
 
-    // 1. 获取知识库内容
-    const { kbName, documents } = await this.getKnowledgeBaseContent(knowledgeBaseId);
+    // 1. 获取知识库内容（带用户权限验证）
+    const { kbName, documents } = await this.getKnowledgeBaseContent(knowledgeBaseId, userId);
     console.log(`[EvalGenerator] KB "${kbName}" has ${documents.length} documents`);
 
     // 2. 准备固定问题

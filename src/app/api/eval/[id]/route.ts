@@ -16,7 +16,7 @@ interface RouteParams {
 
 /**
  * GET /api/eval/[id]
- * 获取单个评估运行的详细信息
+ * 获取单个评估运行的详细信息（仅限当前用户的评估）
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
@@ -25,12 +25,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
+    const userId = (session.user as any).id;
     const { id } = await params;
-    const evalRun = await EvalService.getEvalRun(id);
+    const evalRun = await EvalService.getEvalRun(id, userId);
 
     if (!evalRun) {
       return NextResponse.json(
-        { error: '评估运行不存在' },
+        { error: '评估运行不存在或无权访问' },
         { status: 404 }
       );
     }
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 /**
  * DELETE /api/eval/[id]
- * 删除评估运行
+ * 删除评估运行（仅限当前用户的评估）
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
@@ -56,8 +57,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
+    const userId = (session.user as any).id;
     const { id } = await params;
-    await EvalService.deleteEvalRun(id);
+    await EvalService.deleteEvalRun(id, userId);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

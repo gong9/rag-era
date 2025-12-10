@@ -7,6 +7,29 @@ import { prisma } from './prisma';
 import { LLMService } from './llm';
 import { runAllJudges, EvalInput } from './eval-judges';
 
+/**
+ * 验证用户是否有权限访问指定的知识库
+ */
+async function validateKnowledgeBaseOwnership(knowledgeBaseId: string, userId: string): Promise<boolean> {
+  const kb = await prisma.knowledgeBase.findFirst({
+    where: { id: knowledgeBaseId, userId },
+  });
+  return !!kb;
+}
+
+/**
+ * 验证用户是否有权限访问指定的评估运行
+ */
+async function validateEvalRunOwnership(evalRunId: string, userId: string): Promise<boolean> {
+  const evalRun = await prisma.evalRun.findFirst({
+    where: {
+      id: evalRunId,
+      knowledgeBase: { userId },
+    },
+  });
+  return !!evalRun;
+}
+
 // 评测问题结构
 export interface EvalQuestion {
   id: string;
@@ -61,15 +84,16 @@ export class EvalService {
    * 创建新的评估运行（使用动态生成的问题）
    * @param knowledgeBaseId 知识库 ID
    * @param questions 评估问题列表（由 EvalGenerator 生成）
+   * @param userId 用户 ID（用于权限验证）
    */
-  static async createEvalRun(knowledgeBaseId: string, questions: EvalQuestion[]): Promise<string> {
-    // 验证知识库存在
-    const kb = await prisma.knowledgeBase.findUnique({
-      where: { id: knowledgeBaseId },
+  static async createEvalRun(knowledgeBaseId: string, questions: EvalQuestion[], userId: string): Promise<string> {
+    // 验证知识库存在且属于当前用户
+    const kb = await prisma.knowledgeBase.findFirst({
+      where: { id: knowledgeBaseId, userId },
     });
 
     if (!kb) {
-      throw new Error(`知识库不存在: ${knowledgeBaseId}`);
+      throw new Error(`知识库不存在或无权访问: ${knowledgeBaseId}`);
     }
 
     if (!questions || questions.length === 0) {
@@ -418,10 +442,15 @@ export class EvalService {
 
   /**
    * 获取评估运行详情
+   * @param evalRunId 评估运行 ID
+   * @param userId 用户 ID（用于权限验证）
    */
-  static async getEvalRun(evalRunId: string) {
-    const evalRun = await prisma.evalRun.findUnique({
-      where: { id: evalRunId },
+  static async getEvalRun(evalRunId: string, userId: string) {
+    const evalRun = await prisma.evalRun.findFirst({
+      where: {
+        id: evalRunId,
+        knowledgeBase: { userId },
+      },
       include: {
         results: {
           orderBy: { createdAt: 'asc' },
@@ -437,10 +466,15 @@ export class EvalService {
 
   /**
    * 获取知识库的所有评估运行
+   * @param knowledgeBaseId 知识库 ID
+   * @param userId 用户 ID（用于权限验证）
    */
-  static async getEvalRuns(knowledgeBaseId: string) {
+  static async getEvalRuns(knowledgeBaseId: string, userId: string) {
     const evalRuns = await prisma.evalRun.findMany({
-      where: { knowledgeBaseId },
+      where: {
+        knowledgeBaseId,
+        knowledgeBase: { userId },
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         _count: {
@@ -453,10 +487,14 @@ export class EvalService {
   }
 
   /**
-   * 获取所有评估运行（跨知识库）
+   * 获取当前用户的所有评估运行（跨知识库）
+   * @param userId 用户 ID（用于权限验证）
    */
-  static async getAllEvalRuns() {
+  static async getAllEvalRuns(userId: string) {
     const evalRuns = await prisma.evalRun.findMany({
+      where: {
+        knowledgeBase: { userId },
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         knowledgeBase: {
@@ -473,13 +511,35 @@ export class EvalService {
 
   /**
    * 删除评估运行
+   * @param evalRunId 评估运行 ID
+   * @param userId 用户 ID（用于权限验证）
    */
-  static async deleteEvalRun(evalRunId: string): Promise<void> {
+  static async deleteEvalRun(evalRunId: string, userId: string): Promise<void> {
+    // 先验证权限
+    const hasAccess = await validateEvalRunOwnership(evalRunId, userId);
+    if (!hasAccess) {
+      throw new Error('评估运行不存在或无权删除');
+    }
+
     await prisma.evalRun.delete({
       where: { id: evalRunId },
     });
 
     console.log(`[EvalService] Deleted EvalRun ${evalRunId}`);
+  }
+
+  /**
+   * 验证用户是否有权限访问指定的知识库（公开方法，供 API 调用）
+   */
+  static async validateKnowledgeBaseAccess(knowledgeBaseId: string, userId: string): Promise<boolean> {
+    return validateKnowledgeBaseOwnership(knowledgeBaseId, userId);
+  }
+
+  /**
+   * 验证用户是否有权限访问指定的评估运行（公开方法，供 API 调用）
+   */
+  static async validateEvalRunAccess(evalRunId: string, userId: string): Promise<boolean> {
+    return validateEvalRunOwnership(evalRunId, userId);
   }
 }
 

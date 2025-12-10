@@ -12,7 +12,7 @@ import { EvalService } from '@/lib/eval-service';
 
 /**
  * GET /api/eval
- * 获取所有评估运行列表
+ * 获取当前用户的评估运行列表
  */
 export async function GET(request: NextRequest) {
   try {
@@ -21,15 +21,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
+    const userId = (session.user as any).id;
+
     // 可选：通过 query 参数过滤特定知识库
     const { searchParams } = new URL(request.url);
     const knowledgeBaseId = searchParams.get('knowledgeBaseId');
 
     let evalRuns;
     if (knowledgeBaseId) {
-      evalRuns = await EvalService.getEvalRuns(knowledgeBaseId);
+      evalRuns = await EvalService.getEvalRuns(knowledgeBaseId, userId);
     } else {
-      evalRuns = await EvalService.getAllEvalRuns();
+      evalRuns = await EvalService.getAllEvalRuns(userId);
     }
 
     return NextResponse.json(evalRuns);
@@ -58,6 +60,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
+    const userId = (session.user as any).id;
     const body = await request.json();
     const { knowledgeBaseId, questions } = body;
 
@@ -77,8 +80,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`[API] POST /api/eval - KB: ${knowledgeBaseId}, Questions: ${questions.length}`);
 
-    // 创建评估运行（传入动态生成的问题列表）
-    const evalRunId = await EvalService.createEvalRun(knowledgeBaseId, questions);
+    // 创建评估运行（传入动态生成的问题列表和用户ID）
+    const evalRunId = await EvalService.createEvalRun(knowledgeBaseId, questions, userId);
 
     return NextResponse.json({
       id: evalRunId,

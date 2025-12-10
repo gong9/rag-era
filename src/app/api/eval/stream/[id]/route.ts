@@ -37,7 +37,7 @@ function sendEvent(
 
 /**
  * GET /api/eval/stream/[id]
- * SSE 端点：实时推送评估进度
+ * SSE 端点：实时推送评估进度（仅限当前用户的评估）
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const session = await getServerSession(authOptions);
@@ -45,7 +45,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return new Response('Unauthorized', { status: 401 });
   }
 
+  const userId = (session.user as any).id;
   const { id: evalRunId } = await params;
+
+  // 验证用户是否有权限访问此评估
+  const hasAccess = await EvalService.validateEvalRunAccess(evalRunId, userId);
+  if (!hasAccess) {
+    return new Response('评估运行不存在或无权访问', { status: 403 });
+  }
 
   // 创建 SSE 流
   const stream = new ReadableStream({
