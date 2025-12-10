@@ -1,29 +1,13 @@
-2025-12-10 23:46:53,352 - __main__ - INFO - Starting LightRAG service on 0.0.0.0:8005
-2025-12-10 23:46:53,352 - __main__ - INFO - Storage directory: ./lightrag-data
-2025-12-10 23:46:53,352 - __main__ - INFO - LLM Model: qwen-turbo
-INFO:     Started server process [68833]
+2025-12-10 23:59:02,653 - __main__ - INFO - Starting LightRAG service on 0.0.0.0:8005
+2025-12-10 23:59:02,653 - __main__ - INFO - Storage directory: ./lightrag-data
+2025-12-10 23:59:02,653 - __main__ - INFO - LLM Model: qwen-turbo
+INFO:     Started server process [78021]
 INFO:     Waiting for application startup.
-2025-12-10 23:46:53,376 - main - INFO - LightRAG service starting...
+2025-12-10 23:59:02,676 - main - INFO - LightRAG service starting...
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8005 (Press CTRL+C to quit)
-INFO:     127.0.0.1:59843 - "GET /health HTTP/1.1" 200 OK
-2025-12-10 23:47:11,289 - main - INFO - [7778ed39-a06f-4e7b-868b-5eb97ecb58d9] Loaded 34 entities
-2025-12-10 23:47:11,290 - main - INFO - [7778ed39-a06f-4e7b-868b-5eb97ecb58d9] Loaded 61 relations
-INFO:     127.0.0.1:59845 - "GET /graph/7778ed39-a06f-4e7b-868b-5eb97ecb58d9?limit=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59843 - "GET /health HTTP/1.1" 200 OK
-2025-12-10 23:47:11,308 - main - INFO - [7778ed39-a06f-4e7b-868b-5eb97ecb58d9] Loaded 34 entities
-2025-12-10 23:47:11,308 - main - INFO - [7778ed39-a06f-4e7b-868b-5eb97ecb58d9] Loaded 61 relations
-INFO:     127.0.0.1:59845 - "GET /graph/7778ed39-a06f-4e7b-868b-5eb97ecb58d9?limit=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59843 - "GET /health HTTP/1.1" 200 OK
-2025-12-10 23:47:15,891 - main - INFO - [7778ed39-a06f-4e7b-868b-5eb97ecb58d9] Loaded 34 entities
-2025-12-10 23:47:15,892 - main - INFO - [7778ed39-a06f-4e7b-868b-5eb97ecb58d9] Loaded 61 relations
-INFO:     127.0.0.1:59845 - "GET /graph/7778ed39-a06f-4e7b-868b-5eb97ecb58d9?limit=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59843 - "GET /health HTTP/1.1" 200 OK
-2025-12-10 23:47:15,914 - main - INFO - [7778ed39-a06f-4e7b-868b-5eb97ecb58d9] Loaded 34 entities
-2025-12-10 23:47:15,914 - main - INFO - [7778ed39-a06f-4e7b-868b-5eb97ecb58d9] Loaded 61 relations
-INFO:     127.0.0.1:59845 - "GET /graph/7778ed39-a06f-4e7b-868b-5eb97ecb58d9?limit=1 HTTP/1.1" 200 OK
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
-2025-12-10 23:50:40,842 - main - INFO - LightRAG service shutting down...
+2025-12-10 23:59:28,059 - main - INFO - LightRAG service shutting down...
 INFO:     Application shutdown complete.
-INFO:     Finished server process [68833]
+INFO:     Finished server process [78021]

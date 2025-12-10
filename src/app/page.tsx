@@ -17,18 +17,19 @@ import {
   Sparkles,
   Target,
   Shield,
-  Wrench
+  Wrench,
+  Network
 } from 'lucide-react';
 
 // Agent 工具数据
 const agentTools = [
   { icon: Search, name: '知识检索', desc: '精准检索 Top-3，混合搜索' },
   { icon: Target, name: '深度检索', desc: '深度检索 Top-8，混合搜索' },
+  { icon: Network, name: '图谱检索', desc: 'LightRAG 知识图谱推理' },
   { icon: FileText, name: '主题总结', desc: '直接读取原文进行总结' },
   { icon: BookOpen, name: '关键词搜索', desc: 'Meilisearch 精确匹配' },
   { icon: Globe, name: '网页搜索', desc: 'SearXNG 搜索互联网' },
   { icon: Clock, name: '时间获取', desc: '获取当前日期时间' },
-  { icon: Zap, name: '网页抓取', desc: '抓取网页内容' },
   { icon: BarChart3, name: '图表生成', desc: '流程图/时序图可视化' },
 ];
 
@@ -296,8 +297,8 @@ export default function LandingPage() {
 
             {/* 混合搜索说明 */}
             <div className="mt-12 pt-8 border-t border-zinc-100">
-              <h4 className="text-lg font-semibold mb-6 text-center text-zinc-900">混合搜索 RRF 融合</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+              <h4 className="text-lg font-semibold mb-6 text-center text-zinc-900">三路混合搜索 RRF 融合</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 text-center items-center">
                 <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-100">
                   <div className="text-zinc-900 font-mono text-sm mb-2">向量检索</div>
                   <div className="text-zinc-500 text-xs">LlamaIndex 语义相似</div>
@@ -308,6 +309,13 @@ export default function LandingPage() {
                 <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-100">
                   <div className="text-zinc-900 font-mono text-sm mb-2">关键词检索</div>
                   <div className="text-zinc-500 text-xs">Meilisearch 精确匹配</div>
+                </div>
+                <div className="p-4 rounded-xl flex items-center justify-center">
+                  <span className="text-2xl font-light text-zinc-300">+</span>
+                </div>
+                <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-100">
+                  <div className="text-zinc-900 font-mono text-sm mb-2">图谱检索</div>
+                  <div className="text-zinc-500 text-xs">LightRAG 关系推理</div>
                 </div>
               </div>
               <div className="text-center mt-6">
