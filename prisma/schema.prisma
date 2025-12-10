@@ -91,6 +91,7 @@ model EvalRun {
   knowledgeBaseId String
   knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
   status          String        @default("pending") // pending | running | completed | failed
+  questions       String?       // JSON: 评估问题列表
   totalQuestions  Int           @default(0)
   completedCount  Int           @default(0)
   avgRetrievalScore Float?

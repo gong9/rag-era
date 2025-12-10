@@ -6,10 +6,8 @@
 import { prisma } from './prisma';
 import { LLMService } from './llm';
 import { runAllJudges, EvalInput } from './eval-judges';
-import * as fs from 'fs-extra';
-import * as path from 'path';
 
-// 评测问题结构（对应 eval.json）
+// 评测问题结构
 export interface EvalQuestion {
   id: string;
   question: string;
@@ -39,26 +37,32 @@ export interface EvalRunResult {
  */
 export class EvalService {
   /**
-   * 加载评测数据集
+   * 从数据库获取评估运行的问题列表
    */
-  static async loadEvalDataset(customPath?: string): Promise<EvalQuestion[]> {
-    const evalPath = customPath || path.join(process.cwd(), 'eval', 'eval.json');
-    
-    if (!await fs.pathExists(evalPath)) {
-      throw new Error(`评测数据集不存在: ${evalPath}`);
+  static async getQuestions(evalRunId: string): Promise<EvalQuestion[]> {
+    const evalRun = await prisma.evalRun.findUnique({
+      where: { id: evalRunId },
+      select: { questions: true },
+    });
+
+    if (!evalRun?.questions) {
+      return [];
     }
 
-    const content = await fs.readFile(evalPath, 'utf-8');
-    const questions: EvalQuestion[] = JSON.parse(content);
-    
-    console.log(`[EvalService] Loaded ${questions.length} questions from ${evalPath}`);
-    return questions;
+    try {
+      return JSON.parse(evalRun.questions) as EvalQuestion[];
+    } catch (e) {
+      console.error(`[EvalService] Failed to parse questions for ${evalRunId}:`, e);
+      return [];
+    }
   }
 
   /**
-   * 创建新的评估运行
+   * 创建新的评估运行（使用动态生成的问题）
+   * @param knowledgeBaseId 知识库 ID
+   * @param questions 评估问题列表（由 EvalGenerator 生成）
    */
-  static async createEvalRun(knowledgeBaseId: string): Promise<string> {
+  static async createEvalRun(knowledgeBaseId: string, questions: EvalQuestion[]): Promise<string> {
     // 验证知识库存在
     const kb = await prisma.knowledgeBase.findUnique({
       where: { id: knowledgeBaseId },
@@ -68,20 +72,22 @@ export class EvalService {
       throw new Error(`知识库不存在: ${knowledgeBaseId}`);
     }
 
-    // 加载评测数据集获取问题数量
-    const questions = await this.loadEvalDataset();
+    if (!questions || questions.length === 0) {
+      throw new Error('评估问题列表不能为空');
+    }
 
-    // 创建评估运行记录
+    // 创建评估运行记录，将问题列表序列化为 JSON 存储
     const evalRun = await prisma.evalRun.create({
       data: {
         knowledgeBaseId,
         status: 'pending',
+        questions: JSON.stringify(questions),
         totalQuestions: questions.length,
         completedCount: 0,
       },
     });
 
-    console.log(`[EvalService] Created EvalRun ${evalRun.id} for KB ${knowledgeBaseId}`);
+    console.log(`[EvalService] Created EvalRun ${evalRun.id} for KB ${knowledgeBaseId} with ${questions.length} questions`);
     return evalRun.id;
   }
 
@@ -223,8 +229,11 @@ export class EvalService {
     });
 
     try {
-      // 加载评测数据集
-      const questions = await this.loadEvalDataset();
+      // 从数据库获取问题列表
+      const questions = await this.getQuestions(evalRunId);
+      if (!questions || questions.length === 0) {
+        throw new Error('未找到评估问题列表，请先生成问题');
+      }
 
       // 逐个评估问题
       for (const question of questions) {
@@ -334,8 +343,12 @@ export class EvalService {
     });
 
     try {
-      // 加载评测数据集
-      const questions = await this.loadEvalDataset();
+      // 从数据库获取问题列表
+      const questions = await this.getQuestions(evalRunId);
+      if (!questions || questions.length === 0) {
+        throw new Error('未找到评估问题列表，请先生成问题');
+      }
+      
       const total = questions.length;
       let completed = 0;
 

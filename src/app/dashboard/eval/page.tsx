@@ -10,7 +10,11 @@ import {
   Trash2, 
   Loader2,
   ChevronRight,
-  MessageSquare
+  MessageSquare,
+  Sparkles,
+  X,
+  Check,
+  FileQuestion
 } from 'lucide-react';
 import { formatDate, cn } from '@/lib/utils';
 
@@ -49,6 +53,14 @@ interface EvalResult {
 interface KnowledgeBase {
   id: string;
   name: string;
+}
+
+interface GeneratedQuestion {
+  id: string;
+  question: string;
+  expectedIntent: string;
+  expectedTools: string[];
+  keywords: string[];
 }
 
 interface SSEProgressEvent {
@@ -94,6 +106,15 @@ const ScoreIndicator = ({ score, size = 'md' }: { score: number; size?: 'sm' | '
   );
 };
 
+// 意图标签映射
+const intentLabels: Record<string, { label: string; color: string }> = {
+  knowledge_query: { label: '知识查询', color: 'bg-blue-100 text-blue-700' },
+  document_summary: { label: '文档总结', color: 'bg-purple-100 text-purple-700' },
+  draw_diagram: { label: '画图', color: 'bg-green-100 text-green-700' },
+  datetime: { label: '时间查询', color: 'bg-orange-100 text-orange-700' },
+  web_search: { label: '网络搜索', color: 'bg-cyan-100 text-cyan-700' },
+};
+
 export default function EvalDashboardPage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -105,6 +126,11 @@ export default function EvalDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  
+  // 问题生成相关状态
+  const [generating, setGenerating] = useState(false);
+  const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
   
   const [liveProgress, setLiveProgress] = useState<{
     completed: number;
@@ -158,7 +184,8 @@ export default function EvalDashboardPage() {
     }
   };
 
-  const handleStartEval = async () => {
+  // 生成评估问题
+  const handleGenerateQuestions = async () => {
     if (!selectedKB) return;
     
     // 检查知识库是否有文档
@@ -175,14 +202,47 @@ export default function EvalDashboardPage() {
       console.error('检查知识库失败:', e);
     }
     
+    setGenerating(true);
+    
+    try {
+      const response = await fetch('/api/eval/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ knowledgeBaseId: selectedKB, count: 10 }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '生成问题失败');
+      }
+
+      const questions = await response.json();
+      setGeneratedQuestions(questions);
+      setShowQuestionModal(true);
+    } catch (error: any) {
+      console.error('生成问题失败:', error);
+      alert(error.message || '生成问题失败，请重试');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // 确认并开始评估
+  const handleConfirmAndStartEval = async () => {
+    if (!selectedKB || generatedQuestions.length === 0) return;
+    
+    setShowQuestionModal(false);
     setRunning(true);
-    setLiveProgress({ completed: 0, total: 0, currentQuestion: '准备中...', results: [] });
+    setLiveProgress({ completed: 0, total: generatedQuestions.length, currentQuestion: '准备中...', results: [] });
 
     try {
       const response = await fetch('/api/eval', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ knowledgeBaseId: selectedKB }),
+        body: JSON.stringify({ 
+          knowledgeBaseId: selectedKB,
+          questions: generatedQuestions,
+        }),
       });
 
       if (!response.ok) throw new Error('创建评估失败');
@@ -192,6 +252,9 @@ export default function EvalDashboardPage() {
       // 立即刷新列表并选中新创建的评估
       await fetchEvalRuns();
       fetchRunDetails(evalRunId);
+      
+      // 清空生成的问题
+      setGeneratedQuestions([]);
 
       let retryCount = 0;
       const maxRetries = 3;
@@ -336,29 +399,120 @@ export default function EvalDashboardPage() {
             ))}
           </select>
           <button 
-            onClick={handleStartEval} 
-            disabled={running || !selectedKB}
+            onClick={handleGenerateQuestions} 
+            disabled={running || generating || !selectedKB}
             className={cn(
               "h-8 px-4 rounded-md text-[13px] font-medium flex items-center gap-2 transition-all",
-              running 
+              (running || generating)
                 ? "bg-[#F5F5F5] text-[#999] cursor-not-allowed"
                 : "bg-[#5E6AD2] text-white hover:bg-[#4F5AC2]"
             )}
           >
-            {running ? (
+            {generating ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                生成问题中...
+              </>
+            ) : running ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 评估中...
               </>
             ) : (
               <>
-                <Play className="w-3.5 h-3.5" />
+                <Sparkles className="w-3.5 h-3.5" />
                 开始评估
               </>
             )}
           </button>
         </div>
       </header>
+
+      {/* 问题预览弹窗 */}
+      {showQuestionModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowQuestionModal(false)}
+          />
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            {/* 弹窗头部 */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E8E8]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-[#5E6AD2]/10 flex items-center justify-center">
+                  <FileQuestion className="w-5 h-5 text-[#5E6AD2]" />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-semibold text-[#111]">评估问题预览</h3>
+                  <p className="text-[12px] text-[#999]">已生成 {generatedQuestions.length} 个问题</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowQuestionModal(false)}
+                className="p-2 rounded-md hover:bg-[#F5F5F5] text-[#999] hover:text-[#666] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {/* 问题列表 */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-3">
+                {generatedQuestions.map((q, index) => (
+                  <div 
+                    key={q.id}
+                    className="p-4 bg-[#FAFAFA] rounded-lg border border-[#E8E8E8] hover:border-[#D0D0D0] transition-colors"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#5E6AD2] text-white text-[12px] font-semibold flex items-center justify-center">
+                        {index + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[14px] text-[#333] leading-relaxed">{q.question}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={cn(
+                            "px-2 py-0.5 rounded text-[11px] font-medium",
+                            intentLabels[q.expectedIntent]?.color || 'bg-gray-100 text-gray-700'
+                          )}>
+                            {intentLabels[q.expectedIntent]?.label || q.expectedIntent}
+                          </span>
+                          {q.expectedTools?.map(tool => (
+                            <span key={tool} className="px-2 py-0.5 rounded text-[11px] bg-[#F0F0F0] text-[#666]">
+                              {tool}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {/* 弹窗底部 */}
+            <div className="px-6 py-4 border-t border-[#E8E8E8] bg-[#FAFAFA] flex items-center justify-between">
+              <p className="text-[12px] text-[#999]">
+                问题将用于评估 RAG 系统的检索、忠实度和回答质量
+              </p>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => setShowQuestionModal(false)}
+                  className="h-9 px-4 rounded-md text-[13px] font-medium text-[#666] hover:bg-[#E8E8E8] transition-colors"
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={handleConfirmAndStartEval}
+                  className="h-9 px-5 rounded-md text-[13px] font-medium bg-[#5E6AD2] text-white hover:bg-[#4F5AC2] transition-colors flex items-center gap-2"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  确认并开始评估
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex">
         {/* 左侧面板 */}
@@ -468,7 +622,7 @@ export default function EvalDashboardPage() {
                     <div className="h-1 bg-[#E8E8E8] rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-[#5E6AD2] transition-all duration-300"
-                        style={{ width: `${(liveProgress.completed / liveProgress.total) * 100}%` }}
+                        style={{ width: `${liveProgress.total > 0 ? (liveProgress.completed / liveProgress.total) * 100 : 0}%` }}
                       />
                     </div>
                   </div>

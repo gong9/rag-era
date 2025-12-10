@@ -136,9 +136,17 @@ ${toolsCalled.length > 0 ? toolsCalled.join(', ') : '无'}
 {"score": 数字, "reason": "一句话评分理由"}`;
 
   try {
-    // 如果没有检索内容，且使用了非检索类工具，直接返回 N/A
-    if (!hasContent && usedNonRetrievalTool) {
-      return { score: 5, reason: '此问题通过工具获取信息，不需要知识库检索' };
+    // 如果使用了 web_search 或 fetch_webpage 工具，信息来源是网络而非知识库
+    // 检索质量评估不适用
+    const usedWebSearch = toolsCalled.some(t => ['web_search', 'fetch_webpage'].includes(t));
+    if (usedWebSearch) {
+      return { score: 5, reason: '此问题通过网络搜索获取信息，不依赖知识库检索' };
+    }
+    
+    // 如果使用了 get_current_datetime 工具，不需要知识库检索
+    const usedDatetime = toolsCalled.includes('get_current_datetime');
+    if (usedDatetime && !hasContent) {
+      return { score: 5, reason: '此问题通过系统时间工具获取信息，不需要知识库检索' };
     }
     
     // 如果没有检索内容，且没有使用工具，直接返回 0 分
@@ -220,9 +228,17 @@ ${isDiagramTask ? `
 {"score": 数字, "reason": "一句话评分理由"}`;
 
   try {
-    // 如果没有检索内容，但使用了信息获取工具，给高分
-    if (!hasContent && usedInfoTool) {
-      return { score: 5, reason: '回答基于工具返回的信息，无幻觉' };
+    // 如果使用了 web_search 或 fetch_webpage 工具，信息来源是网络而非知识库
+    // 直接给高分，不用知识库检索内容来评判
+    const usedWebSearch = toolsCalled.some(t => ['web_search', 'fetch_webpage'].includes(t));
+    if (usedWebSearch) {
+      return { score: 5, reason: '回答基于网络搜索结果，信息来源为互联网而非知识库' };
+    }
+    
+    // 如果使用了 get_current_datetime 工具获取时间
+    const usedDatetime = toolsCalled.includes('get_current_datetime');
+    if (usedDatetime && !hasContent) {
+      return { score: 5, reason: '回答基于系统时间工具返回的信息，无幻觉' };
     }
 
     const response = await llm.complete({ prompt });

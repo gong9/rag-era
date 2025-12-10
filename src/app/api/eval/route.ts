@@ -46,7 +46,10 @@ export async function GET(request: NextRequest) {
  * POST /api/eval
  * 创建新的评估（不立即运行，通过 SSE 订阅来运行）
  * 
- * Body: { knowledgeBaseId: string }
+ * Body: { 
+ *   knowledgeBaseId: string,
+ *   questions: Array<{ id, question, expectedIntent?, expectedTools?, keywords? }>
+ * }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -56,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { knowledgeBaseId } = body;
+    const { knowledgeBaseId, questions } = body;
 
     if (!knowledgeBaseId) {
       return NextResponse.json(
@@ -65,8 +68,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 创建评估运行（不立即执行，等待 SSE 订阅）
-    const evalRunId = await EvalService.createEvalRun(knowledgeBaseId);
+    if (!questions || !Array.isArray(questions) || questions.length === 0) {
+      return NextResponse.json(
+        { error: '缺少 questions 参数或问题列表为空' },
+        { status: 400 }
+      );
+    }
+
+    console.log(`[API] POST /api/eval - KB: ${knowledgeBaseId}, Questions: ${questions.length}`);
+
+    // 创建评估运行（传入动态生成的问题列表）
+    const evalRunId = await EvalService.createEvalRun(knowledgeBaseId, questions);
 
     return NextResponse.json({
       id: evalRunId,
