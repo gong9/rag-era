@@ -6,7 +6,7 @@ import { signOut, useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { BookOpen, LogOut, Plus, Trash2, MessageSquare, Search, FileText, ChevronRight, BarChart3, Database, Clock, Command, FlaskConical } from 'lucide-react';
+import { BookOpen, LogOut, Plus, Trash2, MessageSquare, Search, FileText, ChevronRight, BarChart3, Database, Clock, FlaskConical } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -113,11 +113,12 @@ export default function DashboardPage() {
       <header className="sticky top-0 z-30 w-full border-b border-zinc-200 bg-white/80 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60">
         <div className="container mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-2.5">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-zinc-900 rounded-lg flex items-center justify-center shadow-md">
-              <Command className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+            <div className="relative w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center">
+              <div className="absolute inset-0 bg-zinc-900 rounded-lg"></div>
+              <span className="relative text-white font-bold font-mono text-base sm:text-lg select-none">R</span>
             </div>
             <span className="font-bold text-base sm:text-lg tracking-tight text-zinc-900">
-              RAG Knowledge
+              RAG Era
             </span>
           </div>
           
