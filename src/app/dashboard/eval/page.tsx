@@ -160,6 +160,21 @@ export default function EvalDashboardPage() {
 
   const handleStartEval = async () => {
     if (!selectedKB) return;
+    
+    // 检查知识库是否有文档
+    try {
+      const kbResponse = await fetch(`/api/knowledge-bases/${selectedKB}`);
+      if (kbResponse.ok) {
+        const kbData = await kbResponse.json();
+        if (!kbData.documents || kbData.documents.length === 0) {
+          alert('该知识库没有文档，请先上传文档再进行评估');
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('检查知识库失败:', e);
+    }
+    
     setRunning(true);
     setLiveProgress({ completed: 0, total: 0, currentQuestion: '准备中...', results: [] });
 
@@ -178,74 +193,97 @@ export default function EvalDashboardPage() {
       await fetchEvalRuns();
       fetchRunDetails(evalRunId);
 
-      const eventSource = new EventSource(streamUrl);
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      const connectSSE = () => {
+        const eventSource = new EventSource(streamUrl);
 
-      eventSource.addEventListener('progress', (e) => {
-        const data: SSEProgressEvent = JSON.parse(e.data);
-        setLiveProgress(prev => ({
-          completed: data.progress.completed,
-          total: data.progress.total,
-          currentQuestion: data.question,
-          results: [...(prev?.results || []), data],
-        }));
-        
-        // 实时更新选中项的进度
-        setSelectedRun(prev => {
-          if (prev && prev.id === evalRunId) {
-            return {
+        eventSource.addEventListener('progress', (e) => {
+          retryCount = 0; // 重置重试计数
+          const data: SSEProgressEvent = JSON.parse(e.data);
+          setLiveProgress(prev => ({
+            completed: data.progress.completed,
+            total: data.progress.total,
+            currentQuestion: data.question,
+            results: [...(prev?.results || []), data],
+          }));
+          
+          // 实时更新选中项的进度
+          setSelectedRun(prev => {
+            if (prev && prev.id === evalRunId) {
+              return {
+                ...prev,
+                completedCount: data.progress.completed,
+                totalQuestions: data.progress.total,
+              };
+            }
+            return prev;
+          });
+          
+          // 实时更新列表中的进度
+          setEvalRuns(prev => prev.map(run => 
+            run.id === evalRunId 
+              ? { ...run, completedCount: data.progress.completed, status: 'running' as const }
+              : run
+          ));
+          
+          // 实时添加已完成的结果到详情列表（现在包含完整数据）
+          const newResult: EvalResult = {
+            id: data.questionId,
+            questionId: data.questionId,
+            question: data.question,
+            answer: data.answer || '',
+            retrievalScore: data.scores.retrieval,
+            faithScore: data.scores.faithfulness,
+            qualityScore: data.scores.quality,
+            toolScore: data.scores.tool,
+            avgScore: data.scores.average,
+            retrievalReason: data.reasons?.retrieval || null,
+            faithReason: data.reasons?.faithfulness || null,
+            qualityReason: data.reasons?.quality || null,
+            toolReason: null,
+            toolsCalled: null,
+          };
+          setRunDetails(prev => {
+            // 避免重复添加
+            if (prev.some(r => r.questionId === data.questionId)) return prev;
+            return [...prev, newResult];
+          });
+        });
+
+        eventSource.addEventListener('completed', () => {
+          eventSource.close();
+          setRunning(false);
+          setLiveProgress(null);
+          fetchEvalRuns();
+          fetchRunDetails(evalRunId);
+        });
+
+        eventSource.addEventListener('error', () => {
+          eventSource.close();
+          
+          // 尝试重连
+          if (retryCount < maxRetries) {
+            retryCount++;
+            console.log(`SSE 连接断开，尝试重连 (${retryCount}/${maxRetries})...`);
+            setLiveProgress(prev => prev ? {
               ...prev,
-              completedCount: data.progress.completed,
-              totalQuestions: data.progress.total,
-            };
+              currentQuestion: `连接断开，正在重连 (${retryCount}/${maxRetries})...`,
+            } : null);
+            setTimeout(connectSSE, 2000); // 2秒后重连
+          } else {
+            // 重连失败，刷新状态查看后端是否完成
+            console.log('SSE 重连失败，刷新评估状态...');
+            setRunning(false);
+            setLiveProgress(null);
+            fetchEvalRuns();
+            fetchRunDetails(evalRunId);
           }
-          return prev;
         });
-        
-        // 实时更新列表中的进度
-        setEvalRuns(prev => prev.map(run => 
-          run.id === evalRunId 
-            ? { ...run, completedCount: data.progress.completed, status: 'running' as const }
-            : run
-        ));
-        
-        // 实时添加已完成的结果到详情列表（现在包含完整数据）
-        const newResult: EvalResult = {
-          id: data.questionId,
-          questionId: data.questionId,
-          question: data.question,
-          answer: data.answer || '',
-          retrievalScore: data.scores.retrieval,
-          faithScore: data.scores.faithfulness,
-          qualityScore: data.scores.quality,
-          toolScore: data.scores.tool,
-          avgScore: data.scores.average,
-          retrievalReason: data.reasons?.retrieval || null,
-          faithReason: data.reasons?.faithfulness || null,
-          qualityReason: data.reasons?.quality || null,
-          toolReason: null,
-          toolsCalled: null,
-        };
-        setRunDetails(prev => {
-          // 避免重复添加
-          if (prev.some(r => r.questionId === data.questionId)) return prev;
-          return [...prev, newResult];
-        });
-      });
-
-      eventSource.addEventListener('completed', () => {
-        eventSource.close();
-        setRunning(false);
-        setLiveProgress(null);
-        fetchEvalRuns();
-        fetchRunDetails(evalRunId);
-      });
-
-      eventSource.addEventListener('error', () => {
-        eventSource.close();
-        setRunning(false);
-        setLiveProgress(null);
-        fetchEvalRuns();
-      });
+      };
+      
+      connectSSE();
 
     } catch (error) {
       console.error('启动评估失败:', error);
@@ -404,7 +442,11 @@ export default function EvalDashboardPage() {
                   ].map((item) => (
                     <div key={item.label}>
                       <div className="text-[11px] font-medium text-[#999] uppercase tracking-wider mb-1">{item.label}</div>
-                      <ScoreIndicator score={item.value || 0} size="lg" />
+                      {item.value !== null ? (
+                        <ScoreIndicator score={item.value} size="lg" />
+                      ) : (
+                        <span className="text-3xl font-semibold text-[#999] tabular-nums">—</span>
+                      )}
                     </div>
                   ))}
                 </div>
