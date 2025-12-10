@@ -432,7 +432,7 @@ async def get_graph(kb_id: str, limit: int = 100):
     获取知识图谱数据（实体和关系）
     用于前端可视化展示
     """
-    import json
+    import xml.etree.ElementTree as ET
 
     storage_path = get_storage_path(kb_id)
 
@@ -448,55 +448,109 @@ async def get_graph(kb_id: str, limit: int = 100):
 
     entities = []
     relations = []
-    entity_set = set()
+    entity_map = {}
 
     try:
-        # 读取实体文件 (kv_store_full_entities.json)
-        entity_file = os.path.join(storage_path, "kv_store_full_entities.json")
-        if os.path.exists(entity_file):
-            with open(entity_file, "r", encoding="utf-8") as f:
-                entity_data = json.load(f)
-                # 格式: { "doc-xxx": { "entity_names": [...], ... }, ... }
-                for doc_id, doc_data in entity_data.items():
-                    if isinstance(doc_data, dict) and "entity_names" in doc_data:
-                        for name in doc_data["entity_names"]:
-                            if name not in entity_set:
-                                entity_set.add(name)
-                                entities.append({
-                                    "id": name,
-                                    "name": name,
-                                    "type": "ENTITY",
-                                    "description": "",
-                                })
-                logger.info(f"[{kb_id}] Loaded {len(entities)} entities")
+        # 读取 GraphML 文件（LightRAG 的实际存储格式）
+        graphml_file = os.path.join(storage_path, "graph_chunk_entity_relation.graphml")
 
-        # 读取关系文件 (kv_store_full_relations.json)
-        relation_file = os.path.join(storage_path, "kv_store_full_relations.json")
-        if os.path.exists(relation_file):
-            with open(relation_file, "r", encoding="utf-8") as f:
-                relation_data = json.load(f)
-                # 格式: { "doc-xxx": { "relation_pairs": [[src, tgt], ...], ... }, ... }
-                for doc_id, doc_data in relation_data.items():
-                    if isinstance(doc_data, dict) and "relation_pairs" in doc_data:
-                        for pair in doc_data["relation_pairs"]:
-                            if isinstance(pair, list) and len(pair) >= 2:
-                                relations.append({
-                                    "source": pair[0],
-                                    "target": pair[1],
-                                    "type": "RELATED",
-                                    "description": "",
-                                })
-                logger.info(f"[{kb_id}] Loaded {len(relations)} relations")
+        if os.path.exists(graphml_file):
+            logger.info(f"[{kb_id}] Reading GraphML file: {graphml_file}")
+            tree = ET.parse(graphml_file)
+            root = tree.getroot()
+
+            # GraphML 命名空间
+            ns = {"graphml": "http://graphml.graphdrawing.org/xmlns"}
+
+            # 找到 graph 元素（尝试带命名空间和不带命名空间）
+            graph = root.find(".//graphml:graph", ns)
+            if graph is None:
+                graph = root.find(".//{http://graphml.graphdrawing.org/xmlns}graph")
+            if graph is None:
+                graph = root.find(".//graph")
+
+            if graph is not None:
+                # 解析节点（实体）
+                nodes = graph.findall(".//{http://graphml.graphdrawing.org/xmlns}node")
+                if not nodes:
+                    nodes = graph.findall(".//node")
+
+                for node in nodes:
+                    node_id = node.get("id", "")
+                    if not node_id:
+                        continue
+
+                    # 获取节点属性
+                    entity_type = "ENTITY"
+                    description = ""
+
+                    for data in node.findall(
+                        ".//{http://graphml.graphdrawing.org/xmlns}data"
+                    ) or node.findall(".//data"):
+                        key = data.get("key", "")
+                        text = (data.text or "").strip()
+                        if key == "entity_type" or key == "d0":
+                            entity_type = text.upper() if text else "ENTITY"
+                        elif key == "description" or key == "d1":
+                            description = text
+
+                    entity_map[node_id] = {
+                        "id": node_id,
+                        "name": node_id,
+                        "type": entity_type,
+                        "description": description,
+                    }
+
+                # 解析边（关系）
+                edges = graph.findall(".//{http://graphml.graphdrawing.org/xmlns}edge")
+                if not edges:
+                    edges = graph.findall(".//edge")
+
+                for edge in edges:
+                    source = edge.get("source", "")
+                    target = edge.get("target", "")
+
+                    if not source or not target:
+                        continue
+
+                    # 获取关系类型
+                    rel_type = "RELATED"
+                    description = ""
+
+                    for data in edge.findall(
+                        ".//{http://graphml.graphdrawing.org/xmlns}data"
+                    ) or edge.findall(".//data"):
+                        key = data.get("key", "")
+                        text = (data.text or "").strip()
+                        if key in ("relation_type", "d2", "d4") and text:
+                            rel_type = text
+                        elif key in ("description", "d3", "d5"):
+                            description = text
+
+                    relations.append(
+                        {
+                            "source": source,
+                            "target": target,
+                            "type": rel_type,
+                            "description": description,
+                        }
+                    )
+
+                entities = list(entity_map.values())
+                logger.info(
+                    f"[{kb_id}] Loaded {len(entities)} entities, {len(relations)} relations from GraphML"
+                )
 
         # 如果没有数据，返回提示
         if not entities and not relations:
-            files = os.listdir(storage_path)
-            logger.info(f"[{kb_id}] Storage files: {files}")
+            files = os.listdir(storage_path) if os.path.exists(storage_path) else []
+            logger.warning(f"[{kb_id}] No graph data. Storage files: {files}")
             return {
                 "kb_id": kb_id,
                 "entities": [],
                 "relations": [],
-                "message": f"No graph data found. Storage contains: {files}",
+                "message": "知识图谱正在构建中或构建失败。请稍后刷新重试，或重新点击「构建知识图谱」按钮。",
+                "stats": {"entity_count": 0, "relation_count": 0},
             }
 
         # 限制返回数量

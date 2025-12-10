@@ -12,8 +12,10 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 OPENAI_API_BASE = os.getenv('OPENAI_API_BASE', 'https://dashscope.aliyuncs.com/compatible-mode/v1')
 OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'qwen-turbo')
 
-# LightRAG 存储目录
-LIGHTRAG_STORAGE_DIR = os.getenv('LIGHTRAG_STORAGE_DIR', './lightrag-data')
+# LightRAG 存储目录（使用绝对路径，相对于项目根目录）
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_DEFAULT_STORAGE = os.path.join(_PROJECT_ROOT, 'lightrag-data')
+LIGHTRAG_STORAGE_DIR = os.getenv('LIGHTRAG_STORAGE_DIR', _DEFAULT_STORAGE)
 
 # 服务配置
 SERVICE_HOST = os.getenv('LIGHTRAG_HOST', '0.0.0.0')

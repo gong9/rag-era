@@ -91,6 +91,14 @@ rm /tmp/deploy.tar.gz
 [ -d "/tmp/lightrag-data_$BACKUP_ID" ] && rm -rf lightrag-data && mv /tmp/lightrag-data_$BACKUP_ID lightrag-data && echo "✅ lightrag-data 已恢复"
 [ -f "/tmp/dev.db_$BACKUP_ID" ] && mkdir -p prisma && mv /tmp/dev.db_$BACKUP_ID prisma/dev.db && echo "✅ 数据库已恢复"
 
+# 迁移旧的 lightrag 数据（从 lightrag-service/lightrag-data 到 lightrag-data）
+if [ -d "lightrag-service/lightrag-data" ] && [ "$(ls -A lightrag-service/lightrag-data 2>/dev/null)" ]; then
+    echo "📦 迁移旧的 LightRAG 数据..."
+    cp -r lightrag-service/lightrag-data/* lightrag-data/ 2>/dev/null || true
+    rm -rf lightrag-service/lightrag-data
+    echo "✅ LightRAG 数据已迁移到正确位置"
+fi
+
 # 移动 .env
 mv /tmp/.env.rag .env
 

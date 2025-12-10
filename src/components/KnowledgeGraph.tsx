@@ -259,11 +259,22 @@ export default function KnowledgeGraph({ kbId, onClose }: KnowledgeGraphProps) {
           {error && (
             <div className="w-full h-full flex items-center justify-center bg-zinc-50">
               <div className="flex flex-col items-center gap-4 text-center px-8">
-                <Info className="w-12 h-12 text-zinc-400" />
-                <div className="text-zinc-500 max-w-md">{error}</div>
-                <Button onClick={fetchGraphData} variant="outline" size="sm">
-                  重试
-                </Button>
+                <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center">
+                  <Info className="w-8 h-8 text-amber-500" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-zinc-900 font-medium">图谱数据不可用</h3>
+                  <p className="text-zinc-500 max-w-md text-sm">{error}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={onClose} variant="outline" size="sm">
+                    关闭
+                  </Button>
+                  <Button onClick={fetchGraphData} variant="default" size="sm" className="bg-zinc-900 hover:bg-zinc-800">
+                    <RefreshCw className="w-4 h-4 mr-1" />
+                    刷新
+                  </Button>
+                </div>
               </div>
             </div>
           )}
