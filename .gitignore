@@ -42,3 +42,9 @@ next-env.d.ts
 
 # meilisearch
 /meilisearch-data
+
+# Python / LightRAG
+lightrag-service/venv/
+lightrag-service/__pycache__/
+*.pyc
+lightrag-service/lightrag-data/

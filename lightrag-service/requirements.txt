@@ -1,0 +1,15 @@
+# LightRAG 服务依赖
+lightrag-hku>=1.0.0
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-dotenv>=1.0.0
+httpx>=0.26.0
+pydantic>=2.0.0
+aiofiles>=23.0.0
+
+# PDF 和文档处理
+PyMuPDF>=1.23.0
+python-docx>=1.1.0
+
+# 注意：不要使用 nest-asyncio，它与 uvloop 不兼容
+

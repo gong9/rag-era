@@ -6,6 +6,7 @@ import * as path from 'path';
 import { prisma } from './prisma';
 import { meilisearchService } from './meilisearch';
 import { hybridSearch, formatSearchResults } from './hybrid-search';
+import { lightragClient, type LightRAGMode } from './lightrag-client';
 
 const indexCache = new Map<string, VectorStoreIndex>();
 let isConfigured = false;
@@ -19,6 +20,7 @@ const toolNameMap: Record<string, string> = {
   'search_knowledge': '🔍 混合检索知识库',
   'deep_search': '📚 深度混合检索',
   'keyword_search': '🔤 关键词精确搜索',
+  'graph_search': '🕸️ 知识图谱检索',
   'summarize_topic': '📋 获取文档原文',
   'decompose_question': '🔀 拆解复杂问题',
   'verify_answer': '✅ 验证答案质量',
@@ -436,6 +438,52 @@ export class LLMService {
         console.error(`[LLM] Meilisearch indexing failed (continuing without it):`, meiliError);
       }
 
+      // ========== 索引到 LightRAG（构建知识图谱）==========
+      console.log(`[LLM] Indexing documents to LightRAG...`);
+      onProgress?.(47, '索引到 LightRAG（构建知识图谱）...');
+      
+      try {
+        const lightragAvailable = await lightragClient.isAvailable();
+        
+        if (lightragAvailable) {
+          // 准备文档数据
+          const lightragDocs = [];
+          for (const [fileName, data] of documentContents) {
+            const searchName = fileName.replace(/^\d+_/, '');
+            const dbDoc = await prisma.document.findFirst({
+              where: {
+                knowledgeBaseId,
+                name: searchName,
+              },
+            });
+            
+            if (dbDoc && data.content) {
+              lightragDocs.push({
+                id: dbDoc.id,
+                name: fileName.replace(/\.[^/.]+$/, ''),
+                content: data.content,
+              });
+            }
+          }
+          
+          if (lightragDocs.length > 0) {
+            // 异步索引（后台执行，不阻塞）
+            lightragClient.index({
+              kb_id: knowledgeBaseId,
+              documents: lightragDocs,
+            }).then(() => {
+              console.log(`[LLM] ✅ LightRAG indexing started for ${lightragDocs.length} documents`);
+            }).catch((err) => {
+              console.error(`[LLM] LightRAG indexing failed:`, err);
+            });
+          }
+        } else {
+          console.log(`[LLM] LightRAG not available, skipping graph indexing`);
+        }
+      } catch (lightragError) {
+        console.error(`[LLM] LightRAG indexing failed (continuing without it):`, lightragError);
+      }
+
       // 创建存储上下文
       console.log(`[LLM] Creating storage context at ${storageDir}`);
       onProgress?.(50, '创建存储上下文...');
@@ -745,6 +793,8 @@ ${contextStr}
         const formatted = formatSearchResults(results, 3);
         console.log(`[LLM] 🔍 Found ${results.length} results (showing top 3)`);
         actualToolCalls.push({ tool: 'search_knowledge', input: query, output: formatted.substring(0, 200) });
+        // 保存检索结果用于前端展示
+        actualSearchResults = results;
         return formatted;
       },
       {
@@ -778,6 +828,10 @@ ${contextStr}
         const formatted = formatSearchResults(results, 8);
         console.log(`[LLM] 📚 Found ${results.length} results (showing top 8)`);
         actualToolCalls.push({ tool: 'deep_search', input: query, output: formatted.substring(0, 200) });
+        // 保存检索结果用于前端展示
+        if (actualSearchResults.length === 0) {
+          actualSearchResults = results;
+        }
         return formatted;
       },
       {
@@ -824,7 +878,67 @@ ${contextStr}
       }
     );
 
-    // ========== 工具 4: 总结工具（优化：直接读取原文）==========
+    // ========== 工具 4: 知识图谱检索（LightRAG）==========
+    const graphSearchTool = FunctionTool.from(
+      async ({ query, mode }: { query: string; mode?: string }): Promise<string> => {
+        console.log(`[LLM] 🕸️ Graph search: "${query}" (mode: ${mode || 'hybrid'})`);
+        
+        try {
+          // 检查 LightRAG 是否可用
+          const available = await lightragClient.isAvailable();
+          if (!available) {
+            console.log(`[LLM] 🕸️ LightRAG not available, falling back to hybrid search`);
+            // 降级到混合搜索
+            const results = await hybridSearch(index, knowledgeBaseId, query, {
+              vectorTopK: 8,
+              keywordLimit: 8,
+            });
+            const formatted = formatSearchResults(results, 5);
+            actualToolCalls.push({ tool: 'graph_search', input: query, output: `[fallback] ${formatted.substring(0, 200)}` });
+            return `[注意：知识图谱服务不可用，已降级为混合检索]\n\n${formatted}`;
+          }
+          
+          // 调用 LightRAG 查询
+          const result = await lightragClient.query({
+            kb_id: knowledgeBaseId,
+            question: query,
+            mode: (mode as LightRAGMode) || 'hybrid',
+          });
+          
+          console.log(`[LLM] 🕸️ Graph search result: ${result.answer.length} chars`);
+          actualToolCalls.push({ tool: 'graph_search', input: query, output: result.answer.substring(0, 200) });
+          return result.answer;
+        } catch (error: any) {
+          console.error(`[LLM] 🕸️ Graph search error: ${error.message}`);
+          // 出错时降级到混合搜索
+          const results = await hybridSearch(index, knowledgeBaseId, query, {
+            vectorTopK: 8,
+            keywordLimit: 8,
+          });
+          const formatted = formatSearchResults(results, 5);
+          actualToolCalls.push({ tool: 'graph_search', input: query, output: `[error fallback] ${formatted.substring(0, 200)}` });
+          return `[知识图谱查询出错，已降级为混合检索]\n\n${formatted}`;
+        }
+      },
+      {
+        name: 'graph_search',
+        description: '知识图谱检索（LightRAG）：基于实体和关系的智能检索。适合查询实体之间的关系（如"谁是xxx的上级"、"A和B有什么关系"）、复杂推理问题。mode 参数: local（局部-适合具体问题）、global（全局-适合总结）、hybrid（混合-推荐）。',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: '查询问题' },
+            mode: { 
+              type: 'string', 
+              enum: ['local', 'global', 'hybrid'],
+              description: '检索模式：local（局部检索，适合具体问题）、global（全局检索，适合总结）、hybrid（混合，推荐）',
+            },
+          },
+          required: ['query'],
+        },
+      }
+    );
+
+    // ========== 工具 5: 总结工具（优化：直接读取原文）==========
     const summarizeTool = FunctionTool.from(
       async ({ topic }: { topic: string }): Promise<string> => {
         console.log(`[LLM] ────────────────────────────────────────────────────────`);
@@ -1307,22 +1421,27 @@ ${mermaidSyntax}
 1. search_knowledge - 混合检索（向量+关键词融合）
 2. deep_search - 深度混合检索（更多结果）
 3. keyword_search - 关键词精确搜索（适合专有名词、文件名）
-4. summarize_topic - 获取文档原文（用于总结）
-5. web_search - 网络搜索（仅当知识库没有时使用）
-6. get_current_datetime - 获取当前日期时间
-7. fetch_webpage - 网页抓取
-8. generate_diagram - 生成可视化图表
+4. graph_search - 🆕 知识图谱检索（基于实体关系，适合复杂问题）
+5. summarize_topic - 获取文档原文（用于总结）
+6. web_search - 网络搜索（仅当知识库没有时使用）
+7. get_current_datetime - 获取当前日期时间
+8. fetch_webpage - 网页抓取
+9. generate_diagram - 生成可视化图表
 
 ## 意图判断与工具选择
 
+**关系查询（推荐使用 graph_search）：**
+- "谁是xxx的上级" / "A和B有什么关系" / "xxx负责什么" → 使用 graph_search（mode: local）
+- 涉及人物、组织、事件之间关系的问题，优先使用 graph_search
+
 **文档/书籍总结类问题：**
-- "xxx讲了什么" / "总结一下xxx" → 使用 summarize_topic 获取原文，然后你来总结
+- "xxx讲了什么" / "总结一下xxx" → 使用 summarize_topic 获取原文，或使用 graph_search（mode: global）
 
 **精确查找（文件名、代码、专有名词）：**
 - "找到 xxx.pdf" / "搜索 function_name" → 使用 keyword_search
 
 **语义查询（概念、定义）：**
-- "什么是xxx" / "如何做xxx" → 使用 search_knowledge 或 deep_search
+- "什么是xxx" / "如何做xxx" → 使用 search_knowledge 或 graph_search
 
 **画图请求（重要！）：**
 - "画个xxx图" / "流程图" / "时间安排" → 【必须】先调用 deep_search 或 summarize_topic 获取详细信息，再调用 generate_diagram
@@ -1335,15 +1454,17 @@ ${mermaidSyntax}
 ## ⚠️ 重要规则
 1. **必须用中文回答**
 2. **优先使用知识库工具**，禁止跳过检索直接回答
-3. 回答要详细、有条理，基于知识库内容
-4. 如果知识库有相关内容，禁止使用网络搜索
-5. **画图前必须调用 deep_search 或 summarize_topic**，预检索内容不够详细`;
+3. **涉及实体关系的问题，优先使用 graph_search**
+4. 回答要详细、有条理，基于知识库内容
+5. 如果知识库有相关内容，禁止使用网络搜索
+6. **画图前必须调用 deep_search 或 summarize_topic**，预检索内容不够详细`;
 
     // 创建 ReAct Agent，配备工具
-    console.log(`[LLM] Creating ReAct Agent with 8 tools...`);
+    console.log(`[LLM] Creating ReAct Agent with 9 tools...`);
     console.log(`[LLM]   - search_knowledge: 混合检索 (RRF融合)`);
     console.log(`[LLM]   - deep_search: 深度混合检索`);
     console.log(`[LLM]   - keyword_search: 关键词精确搜索 (Meilisearch)`);
+    console.log(`[LLM]   - graph_search: 知识图谱检索 (LightRAG)`);
     console.log(`[LLM]   - summarize_topic: 获取文档原文`);
     console.log(`[LLM]   - web_search: 网络搜索 (SearXNG)`);
     console.log(`[LLM]   - get_current_datetime: 获取当前日期时间`);
@@ -1370,6 +1491,9 @@ ${mermaidSyntax}
     
     // 实际工具调用记录（工具函数中直接记录，比从输出解析更可靠）
     const actualToolCalls: ToolCall[] = [];
+    
+    // 保存检索结果用于返回给前端展示
+    let actualSearchResults: any[] = [];
 
     // ========== 根据意图决定是否预检索知识库 ==========
     console.log(`[LLM] ────────────────────────────────────────────────────────`);
@@ -1393,7 +1517,9 @@ ${mermaidSyntax}
         keywordLimit: 5,
       });
       
+      // 保存预检索结果用于前端展示
       if (results && results.length > 0) {
+        actualSearchResults = results;
         console.log(`[LLM] 📚 Found ${results.length} relevant documents (hybrid search):`);
         const sources = results.map((result: any, i: number) => {
           const text = result.content || '';
@@ -1458,7 +1584,7 @@ ${mermaidSyntax}
     }));
 
     const agent = new ReActAgent({
-      tools: [searchTool, deepSearchTool, keywordSearchTool, summarizeTool, webSearchTool, dateTimeTool, fetchWebpageTool, generateDiagramTool],
+      tools: [searchTool, deepSearchTool, keywordSearchTool, graphSearchTool, summarizeTool, webSearchTool, dateTimeTool, fetchWebpageTool, generateDiagramTool],
       chatHistory: llamaHistory, // 传入对话历史
       verbose: true, // 日志显示思考过程
     });
@@ -1694,14 +1820,34 @@ ${knowledgeContext || '无预检索内容'}
       }
     }
 
+    // 构建 sourceNodes，优先使用 actualSearchResults（来自混合检索）
+    let sourceNodes: Array<{
+      text: string;
+      score: number;
+      type: string;
+      documentName?: string;
+      metadata?: any;
+    }> = [];
+    if (actualSearchResults && actualSearchResults.length > 0) {
+      sourceNodes = actualSearchResults.map((result: any) => ({
+        text: result.content || '',
+        score: result.score,
+        type: result.source || 'hybrid', // vector / keyword / both
+        documentName: result.documentName,
+      }));
+    } else if (response.sourceNodes) {
+      sourceNodes = response.sourceNodes.map((node: any) => ({
+        text: node.node?.text || node.node?.getContent?.() || '',
+        score: node.score,
+        type: 'vector',
+        metadata: node.node?.metadata,
+      }));
+    }
+    
     return {
       answer: finalAnswer,
       thinking: thinking,
-      sourceNodes: response.sourceNodes?.map((node: any) => ({
-        text: node.node?.text || node.node?.getContent?.() || '',
-        score: node.score,
-        metadata: node.node?.metadata,
-      })) || [],
+      sourceNodes,
       // 新增：返回检索内容供评估使用
       retrievedContent: knowledgeContext || '',
       toolCalls: trace.toolCalls,

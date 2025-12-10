@@ -250,6 +250,23 @@ src/
 ├── types/                 # TypeScript 类型
 ```
 
+# 启动开发环境
+./dev.sh start
+
+# 查看状态
+./dev.sh status
+# 输出：
+# ═══════════════════════════════════════
+#         RAG 开发环境状态
+# ═══════════════════════════════════════
+# 🕸️  LightRAG:  运行中 (PID: 1234)
+#    └─ http://localhost:8005/health
+# 🌐 Next.js:   运行中 (PID: 5678)
+#    └─ http://localhost:3000
+
+# 停止
+./dev.sh stop
+
 ## 许可证
 
 MIT

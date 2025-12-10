@@ -2,11 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Upload, Trash2, FileText, CheckCircle, XCircle, Clock, Search, File, FileCode, AlertCircle, Cloud, X, Layers, BarChart } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, FileText, CheckCircle, XCircle, Clock, Search, File, FileCode, AlertCircle, Cloud, X, Layers, BarChart, Network, RefreshCw, Eye } from 'lucide-react';
 import { formatDate, cn } from '@/lib/utils';
+
+// 动态导入图谱可视化组件
+const KnowledgeGraph = dynamic(() => import('@/components/KnowledgeGraph'), {
+  ssr: false,
+  loading: () => null,
+});
 
 interface Document {
   id: string;
@@ -36,10 +43,149 @@ export default function KnowledgeBaseDetailPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [showUpload, setShowUpload] = useState(false); // 控制上传区域显示
+  const [rebuildingGraph, setRebuildingGraph] = useState(false); // 重建图谱索引中
+  const [graphStatus, setGraphStatus] = useState<'idle' | 'building' | 'done' | 'error'>('idle');
+  const [graphProgress, setGraphProgress] = useState(0); // 图谱构建进度
+  const [graphMessage, setGraphMessage] = useState(''); // 图谱构建消息
+  const [showGraphViewer, setShowGraphViewer] = useState(false); // 显示图谱可视化
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false); // 显示确认对话框
 
   useEffect(() => {
     fetchKnowledgeBase();
   }, [params.id]);
+
+  // 显示构建确认对话框
+  const handleShowBuildConfirm = () => {
+    if (!kb || kb.documents.length === 0) {
+      return;
+    }
+    setShowConfirmDialog(true);
+  };
+
+  // 重建 LightRAG 图谱索引（SSE 方式）
+  const handleRebuildGraph = async () => {
+    if (!kb) return;
+    setShowConfirmDialog(false);
+    setRebuildingGraph(true);
+    setGraphStatus('building');
+    setGraphProgress(0);
+    setGraphMessage('准备中...');
+    
+    try {
+      // 使用 fetch + SSE 方式
+      const response = await fetch('/api/lightrag/index', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kb_id: kb.id }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '索引失败');
+      }
+      
+        // 检查是否是 SSE 响应
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('text/event-stream')) {
+          // 处理 SSE 流
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          
+          if (!reader) {
+            throw new Error('无法读取响应流');
+          }
+          
+          let buffer = '';
+          let currentEvent = ''; // 当前事件类型
+          let finalStatus: 'done' | 'error' | 'pending' | null = null; // 追踪最终状态
+          let finalMessage = '';
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            
+            // 解析 SSE 事件
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // 保留不完整的行
+            
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                currentEvent = line.slice(6).trim();
+                continue;
+              }
+              if (line.startsWith('data:')) {
+                try {
+                  const data = JSON.parse(line.slice(5).trim());
+                  
+                  if (data.progress !== undefined) {
+                    setGraphProgress(data.progress);
+                  }
+                  if (data.message) {
+                    setGraphMessage(data.message);
+                    finalMessage = data.message;
+                  }
+                  
+                  // 检查事件类型（优先）
+                  if (currentEvent === 'complete') {
+                    finalStatus = 'done';
+                  } else if (currentEvent === 'error') {
+                    finalStatus = 'error';
+                    if (data.error) finalMessage = data.error;
+                  } else if (currentEvent === 'timeout') {
+                    finalStatus = 'pending';
+                  }
+                  
+                  // 也检查 data 中的状态字段
+                  if (data.status === 'completed' || data.status === 'done') {
+                    finalStatus = 'done';
+                  } else if (data.status === 'failed' || data.status === 'error') {
+                    finalStatus = 'error';
+                    if (data.error) finalMessage = data.error;
+                  } else if (data.status === 'pending') {
+                    finalStatus = 'pending';
+                  }
+                } catch (e) {
+                  // 解析失败，忽略
+                }
+              }
+            }
+          }
+          
+          // 根据追踪的最终状态设置 UI
+          if (finalStatus === 'done') {
+            setGraphStatus('done');
+          } else if (finalStatus === 'error') {
+            setGraphStatus('error');
+            if (finalMessage && !finalMessage.startsWith('构建失败')) {
+              setGraphMessage(`构建失败: ${finalMessage}`);
+            }
+          } else if (finalStatus === 'pending') {
+            // 超时但任务可能还在后台运行，设置为 idle 让用户可以重试
+            setGraphStatus('idle');
+            setGraphMessage(finalMessage || '任务超时，请稍后刷新查看');
+          } else {
+            // 未收到明确状态，流意外结束
+            setGraphStatus('error');
+            setGraphMessage('连接意外断开，请重试');
+          }
+        } else {
+        // 普通 JSON 响应
+        const result = await response.json();
+        setGraphStatus('done');
+        setGraphMessage(result.message || '索引完成');
+        setGraphProgress(100);
+      }
+    } catch (error: any) {
+      console.error('重建图谱索引失败:', error);
+      setGraphStatus('error');
+      setGraphMessage(`构建失败: ${error.message}`);
+      // 不再使用 alert，UI 已经能够显示错误状态
+    } finally {
+      setRebuildingGraph(false);
+    }
+  };
 
   const fetchKnowledgeBase = async () => {
     try {
@@ -47,11 +193,31 @@ export default function KnowledgeBaseDetailPage() {
       if (response.ok) {
         const data = await response.json();
         setKb(data);
+        
+        // 检查 LightRAG 图谱是否已构建
+        checkGraphStatus(params.id as string);
       }
     } catch (error) {
       console.error('获取知识库失败:', error);
     } finally {
       setLoading(false);
+    }
+  };
+  
+  // 检查图谱是否已构建
+  const checkGraphStatus = async (kbId: string) => {
+    try {
+      const response = await fetch(`/api/lightrag/graph/${kbId}?limit=1`);
+      if (response.ok) {
+        const data = await response.json();
+        // 如果有实体数据，说明图谱已构建
+        if (data.entities && data.entities.length > 0) {
+          setGraphStatus('done');
+        }
+      }
+    } catch (error) {
+      // 静默失败，不影响页面
+      console.log('检查图谱状态失败:', error);
     }
   };
 
@@ -265,22 +431,22 @@ export default function KnowledgeBaseDetailPage() {
 
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20 backdrop-blur-xl bg-white/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-            <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')} className="text-gray-500 hover:text-black hover:bg-gray-100 -ml-2 flex-shrink-0 h-8 sm:h-9 px-2 sm:px-3">
-              <ArrowLeft className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">返回列表</span>
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')} className="text-gray-500 hover:text-black hover:bg-gray-100 -ml-2">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              返回列表
             </Button>
-            <div className="h-4 w-px bg-gray-200 hidden sm:block" />
-            <div className="flex flex-col min-w-0">
-              <h1 className="text-sm sm:text-base font-semibold text-gray-900 leading-none truncate">{kb.name}</h1>
-              <span className="text-[10px] text-gray-500 mt-0.5 sm:mt-1 font-mono tracking-wide uppercase hidden sm:block">ID: {kb.id.slice(0, 8)}</span>
+            <div className="h-4 w-px bg-gray-200" />
+            <div className="flex flex-col">
+              <h1 className="text-base font-semibold text-gray-900 leading-none">{kb.name}</h1>
+              <span className="text-[10px] text-gray-500 mt-1 font-mono tracking-wide uppercase">ID: {kb.id.slice(0, 8)}</span>
             </div>
           </div>
           <Button 
             onClick={() => router.push(`/chat/${kb.id}`)} 
             disabled={kb.documents.length === 0}
-            className={`shadow-sm transition-all text-xs sm:text-sm h-8 sm:h-9 px-3 sm:px-4 rounded-full flex-shrink-0 ${
+            className={`shadow-sm transition-all text-sm h-9 px-4 rounded-full ${
               kb.documents.length === 0 
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                 : 'bg-black hover:bg-gray-800 text-white'
@@ -292,43 +458,43 @@ export default function KnowledgeBaseDetailPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8 space-y-4 sm:space-y-8">
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
         
         {/* Stats Overview */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <Card className="border border-gray-200 shadow-sm bg-white p-3 sm:p-5 flex items-center justify-between group hover:border-gray-300 transition-colors">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <Card className="border border-gray-200 shadow-sm bg-white p-5 flex items-center justify-between group hover:border-gray-300 transition-colors">
             <div>
-              <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">文档数</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">{kb.documents.length}</p>
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">总文档数</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{kb.documents.length}</p>
             </div>
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-gray-100 group-hover:text-gray-600 transition-colors">
-              <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-gray-100 group-hover:text-gray-600 transition-colors">
+              <FileText className="w-5 h-5" />
             </div>
           </Card>
           
-          <Card className="border border-gray-200 shadow-sm bg-white p-3 sm:p-5 flex items-center justify-between group hover:border-gray-300 transition-colors">
+          <Card className="border border-gray-200 shadow-sm bg-white p-5 flex items-center justify-between group hover:border-gray-300 transition-colors">
             <div>
-              <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">已索引</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">{kb.documents.filter(d => d.status === 'completed').length}</p>
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">已索引</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{kb.documents.filter(d => d.status === 'completed').length}</p>
             </div>
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 group-hover:bg-green-100 transition-colors">
-              <Layers className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 group-hover:bg-green-100 transition-colors">
+              <Layers className="w-5 h-5" />
             </div>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm bg-white p-3 sm:p-5 flex items-center justify-between group hover:border-gray-300 transition-colors">
+          <Card className="border border-gray-200 shadow-sm bg-white p-5 flex items-center justify-between group hover:border-gray-300 transition-colors">
             <div>
-              <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">状态</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">活跃</p>
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">状态</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">活跃</p>
             </div>
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-colors">
-              <BarChart className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-colors">
+              <BarChart className="w-5 h-5" />
             </div>
           </Card>
         </div>
 
         {/* Toolbar */}
-        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="relative w-full sm:w-72 group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
             <Input 
@@ -336,27 +502,96 @@ export default function KnowledgeBaseDetailPage() {
               className="pl-9 h-10 bg-white border-gray-200 text-sm focus-visible:ring-1 focus-visible:ring-gray-400 transition-all hover:border-gray-300" 
             />
           </div>
-          <Button 
-            onClick={() => setShowUpload(!showUpload)} 
-            className={cn(
-              "shadow-sm transition-all duration-300 h-10 w-full sm:w-auto",
-              showUpload ? "bg-gray-100 text-gray-900 hover:bg-gray-200" : "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 hover:border-gray-300"
-            )}
-          >
-            {showUpload ? <X className="w-4 h-4 mr-2" /> : <Cloud className="w-4 h-4 mr-2" />}
-            {showUpload ? '取消上传' : '上传文档'}
-          </Button>
+          <div className="flex gap-2 items-center">
+            {/* 重建图谱索引按钮 + 进度 */}
+            <div className="flex items-center gap-2">
+              <Button 
+                onClick={handleShowBuildConfirm}
+                disabled={rebuildingGraph || kb.documents.filter(d => d.status === 'completed').length === 0}
+                className={cn(
+                  "shadow-sm transition-all duration-300 relative overflow-hidden",
+                  graphStatus === 'done' 
+                    ? "bg-purple-100 text-purple-700 border border-purple-200 hover:bg-purple-200" 
+                    : graphStatus === 'error'
+                    ? "bg-red-50 text-red-700 border border-red-200"
+                    : "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 hover:border-gray-300",
+                  rebuildingGraph && "opacity-90"
+                )}
+                title="为已有文档构建知识图谱索引（LightRAG）"
+              >
+                {/* 进度条背景 */}
+                {rebuildingGraph && (
+                  <div 
+                    className="absolute inset-0 bg-purple-200/50 transition-all duration-300"
+                    style={{ width: `${graphProgress}%` }}
+                  />
+                )}
+                <span className="relative flex items-center">
+                  {rebuildingGraph ? (
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  ) : graphStatus === 'done' ? (
+                    <Network className="w-4 h-4 mr-2 text-purple-600" />
+                  ) : graphStatus === 'error' ? (
+                    <AlertCircle className="w-4 h-4 mr-2" />
+                  ) : (
+                    <Network className="w-4 h-4 mr-2" />
+                  )}
+                  {rebuildingGraph 
+                    ? `${graphProgress}%` 
+                    : graphStatus === 'done' 
+                    ? '图谱已构建' 
+                    : graphStatus === 'error'
+                    ? '构建失败'
+                    : '构建知识图谱'}
+                </span>
+              </Button>
+              
+              {/* 进度消息 */}
+              {rebuildingGraph && graphMessage && (
+                <span className="text-xs text-gray-500 max-w-[200px] truncate" title={graphMessage}>
+                  {graphMessage}
+                </span>
+              )}
+              
+              {/* 查看图谱按钮 - 只有构建完成才可用 */}
+              <Button
+                onClick={() => setShowGraphViewer(true)}
+                disabled={graphStatus !== 'done'}
+                className={cn(
+                  "shadow-sm transition-all duration-300",
+                  graphStatus === 'done'
+                    ? "bg-zinc-900 hover:bg-zinc-800 text-white"
+                    : "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                )}
+                title={graphStatus === 'done' ? "查看知识图谱可视化" : "请先构建知识图谱"}
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                查看图谱
+              </Button>
+            </div>
+            
+            <Button 
+              onClick={() => setShowUpload(!showUpload)} 
+              className={cn(
+                "shadow-sm transition-all duration-300",
+                showUpload ? "bg-gray-100 text-gray-900 hover:bg-gray-200" : "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+              )}
+            >
+              {showUpload ? <X className="w-4 h-4 mr-2" /> : <Cloud className="w-4 h-4 mr-2" />}
+              {showUpload ? '取消上传' : '上传文档'}
+            </Button>
+          </div>
         </div>
 
         {/* Upload Area (Collapsible) */}
         <div className={cn(
           "grid transition-all duration-300 ease-in-out overflow-hidden",
-          showUpload ? "grid-rows-[1fr] opacity-100 mb-4 sm:mb-8" : "grid-rows-[0fr] opacity-0"
+          showUpload ? "grid-rows-[1fr] opacity-100 mb-8" : "grid-rows-[0fr] opacity-0"
         )}>
           <div className="min-h-0">
             <div 
               className={cn(
-                "relative border-2 border-dashed rounded-xl p-6 sm:p-10 transition-all duration-200 text-center cursor-pointer bg-white group",
+                "relative border-2 border-dashed rounded-xl p-10 transition-all duration-200 text-center cursor-pointer bg-white group",
                 dragActive ? "border-black bg-gray-50" : "border-gray-200 hover:border-gray-400 hover:bg-gray-50",
                 selectedFile ? "border-black bg-gray-50" : ""
               )}
@@ -374,34 +609,34 @@ export default function KnowledgeBaseDetailPage() {
                 className="hidden"
               />
               
-              <div className="flex flex-col items-center gap-3 sm:gap-4">
+              <div className="flex flex-col items-center gap-4">
                 <div className={cn(
-                  "w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-200 shadow-sm",
+                  "w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 shadow-sm",
                   selectedFile ? "bg-black text-white" : "bg-gray-100 text-gray-400 group-hover:bg-white group-hover:shadow-md"
                 )}>
-                  {selectedFile ? <FileText className="w-5 h-5 sm:w-6 sm:h-6" /> : <Cloud className="w-6 h-6 sm:w-7 sm:h-7" />}
+                  {selectedFile ? <FileText className="w-6 h-6" /> : <Cloud className="w-7 h-7" />}
                 </div>
                 
                 <div className="space-y-1">
                   {selectedFile ? (
                     <>
-                      <p className="font-medium text-gray-900 text-base sm:text-lg break-all px-2">{selectedFile.name}</p>
+                      <p className="font-medium text-gray-900 text-lg">{selectedFile.name}</p>
                       <p className="text-sm text-gray-500">{(selectedFile.size / 1024).toFixed(2)} KB - 准备就绪</p>
                     </>
                   ) : (
                     <>
-                      <p className="font-medium text-gray-900 text-base sm:text-lg">点击或拖拽上传文档</p>
-                      <p className="text-xs sm:text-sm text-gray-500">支持 PDF, Word, TXT, Markdown (最大 10MB)</p>
+                      <p className="font-medium text-gray-900 text-lg">点击或拖拽上传文档</p>
+                      <p className="text-sm text-gray-500">支持 PDF, Word, TXT, Markdown (最大 10MB)</p>
                     </>
                   )}
                 </div>
 
                 {selectedFile && (
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mt-2 w-full sm:w-auto">
+                  <div className="flex gap-3 mt-2">
                     <Button 
                       onClick={(e) => { e.stopPropagation(); handleUpload(); }} 
                       disabled={uploading}
-                      className="bg-black text-white hover:bg-gray-800 min-w-[120px] h-10"
+                      className="bg-black text-white hover:bg-gray-800 min-w-[120px]"
                     >
                       {uploading ? '上传处理中...' : '开始上传'}
                     </Button>
@@ -409,7 +644,6 @@ export default function KnowledgeBaseDetailPage() {
                       onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }}
                       variant="outline"
                       disabled={uploading}
-                      className="h-10"
                     >
                       取消
                     </Button>
@@ -420,36 +654,51 @@ export default function KnowledgeBaseDetailPage() {
           </div>
         </div>
 
-        {/* Documents - Mobile Cards / Desktop Table */}
-        {kb.documents.length === 0 ? (
-          <Card className="border border-gray-200 shadow-sm bg-white p-8 sm:p-16">
-            <div className="flex flex-col items-center gap-2 text-center">
-              <FileText className="w-8 h-8 text-gray-300" />
-              <p className="text-gray-500">暂无文档数据</p>
-            </div>
-          </Card>
-        ) : (
-          <>
-            {/* Mobile Card View */}
-            <div className="sm:hidden space-y-3">
-              {kb.documents.map((doc) => (
-                <Card key={doc.id} className="border border-gray-200 shadow-sm bg-white p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500">
-                      {getFileIcon(doc.name)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 text-sm truncate" title={doc.name}>
-                        {doc.name}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                        <span>{formatDate(doc.createdAt)}</span>
-                        {doc.size && <span>· {doc.size}</span>}
+        {/* Documents Table */}
+        <Card className="border border-gray-200 shadow-sm bg-white overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-gray-500 uppercase bg-gray-50/50 border-b border-gray-100">
+                <tr>
+                  <th className="px-6 py-4 font-medium w-[40%]">文档名称</th>
+                  <th className="px-6 py-4 font-medium">上传时间</th>
+                  <th className="px-6 py-4 font-medium">大小</th>
+                  <th className="px-6 py-4 font-medium">状态</th>
+                  <th className="px-6 py-4 font-medium text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {kb.documents.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-20 text-center text-gray-500">
+                      <div className="flex flex-col items-center gap-2">
+                        <FileText className="w-8 h-8 text-gray-300" />
+                        <p>暂无文档数据</p>
                       </div>
-                      {/* Status */}
-                      <div className="mt-2">
+                    </td>
+                  </tr>
+                ) : (
+                  kb.documents.map((doc) => (
+                    <tr key={doc.id} className="group hover:bg-gray-50/80 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0 w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-white group-hover:shadow-sm transition-all">
+                            {getFileIcon(doc.name)}
+                          </div>
+                          <span className="font-medium text-gray-900 truncate max-w-[200px] sm:max-w-xs" title={doc.name}>
+                            {doc.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-gray-500 font-mono text-xs">
+                        {formatDate(doc.createdAt)}
+                      </td>
+                      <td className="px-6 py-4 text-gray-500 font-mono text-xs">
+                        {doc.size || '-'}
+                      </td>
+                      <td className="px-6 py-4">
                         {doc.status === 'processing' && doc.processingProgress !== undefined ? (
-                          <div className="space-y-1.5">
+                          <div className="space-y-1.5 min-w-[180px]">
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-gray-600 font-medium">{doc.processingMessage || '处理中...'}</span>
                               <span className="text-gray-500 font-mono">{doc.processingProgress}%</span>
@@ -463,10 +712,10 @@ export default function KnowledgeBaseDetailPage() {
                           </div>
                         ) : (
                           <div className={cn(
-                            "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border",
-                            doc.status === 'completed' ? "text-green-700 border-green-200 bg-green-50" :
-                            doc.status === 'processing' || doc.status === 'pending' ? "text-blue-700 border-blue-200 bg-blue-50" :
-                            "text-red-700 border-red-200 bg-red-50"
+                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                            doc.status === 'completed' ? "bg-white text-gray-700 border-gray-200 group-hover:border-green-200 group-hover:text-green-700 group-hover:bg-green-50" :
+                            doc.status === 'processing' || doc.status === 'pending' ? "bg-white text-blue-700 border-blue-200 bg-blue-50" :
+                            "bg-white text-red-700 border-red-200 bg-red-50"
                           )}>
                             {doc.status === 'completed' ? <div className="w-1.5 h-1.5 rounded-full bg-green-500" /> :
                              doc.status === 'processing' || doc.status === 'pending' ? <Clock className="w-3 h-3 animate-spin" /> :
@@ -478,104 +727,80 @@ export default function KnowledgeBaseDetailPage() {
                             </span>
                           </div>
                         )}
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-400 hover:text-red-600 hover:bg-red-50 h-8 w-8 p-0 flex-shrink-0"
-                      onClick={() => handleDelete(doc.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </Card>
-              ))}
-            </div>
-
-            {/* Desktop Table View */}
-            <Card className="hidden sm:block border border-gray-200 shadow-sm bg-white overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-xs text-gray-500 uppercase bg-gray-50/50 border-b border-gray-100">
-                    <tr>
-                      <th className="px-6 py-4 font-medium w-[40%]">文档名称</th>
-                      <th className="px-6 py-4 font-medium">上传时间</th>
-                      <th className="px-6 py-4 font-medium">大小</th>
-                      <th className="px-6 py-4 font-medium">状态</th>
-                      <th className="px-6 py-4 font-medium text-right">操作</th>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                          onClick={() => handleDelete(doc.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {kb.documents.map((doc) => (
-                      <tr key={doc.id} className="group hover:bg-gray-50/80 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex-shrink-0 w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-white group-hover:shadow-sm transition-all">
-                              {getFileIcon(doc.name)}
-                            </div>
-                            <span className="font-medium text-gray-900 truncate max-w-xs" title={doc.name}>
-                              {doc.name}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-gray-500 font-mono text-xs">
-                          {formatDate(doc.createdAt)}
-                        </td>
-                        <td className="px-6 py-4 text-gray-500 font-mono text-xs">
-                          {doc.size || '-'}
-                        </td>
-                        <td className="px-6 py-4">
-                          {doc.status === 'processing' && doc.processingProgress !== undefined ? (
-                            <div className="space-y-1.5 min-w-[180px]">
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-gray-600 font-medium">{doc.processingMessage || '处理中...'}</span>
-                                <span className="text-gray-500 font-mono">{doc.processingProgress}%</span>
-                              </div>
-                              <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300 rounded-full"
-                                  style={{ width: `${doc.processingProgress}%` }}
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className={cn(
-                              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
-                              doc.status === 'completed' ? "bg-white text-gray-700 border-gray-200 group-hover:border-green-200 group-hover:text-green-700 group-hover:bg-green-50" :
-                              doc.status === 'processing' || doc.status === 'pending' ? "bg-white text-blue-700 border-blue-200 bg-blue-50" :
-                              "bg-white text-red-700 border-red-200 bg-red-50"
-                            )}>
-                              {doc.status === 'completed' ? <div className="w-1.5 h-1.5 rounded-full bg-green-500" /> :
-                               doc.status === 'processing' || doc.status === 'pending' ? <Clock className="w-3 h-3 animate-spin" /> :
-                               <AlertCircle className="w-3 h-3" />}
-                              <span>
-                                {doc.status === 'completed' ? '已索引' :
-                                 doc.status === 'processing' ? '处理中' :
-                                 doc.status === 'pending' ? '等待处理' : '失败'}
-                              </span>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
-                            onClick={() => handleDelete(doc.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          </>
-        )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       </main>
+      
+      {/* 图谱可视化弹窗 */}
+      {showGraphViewer && kb && (
+        <KnowledgeGraph 
+          kbId={kb.id} 
+          onClose={() => setShowGraphViewer(false)} 
+        />
+      )}
+      
+      {/* 构建确认对话框 */}
+      {showConfirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* 背景遮罩 */}
+          <div 
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setShowConfirmDialog(false)}
+          />
+          
+          {/* 对话框 */}
+          <div className="relative bg-white rounded-2xl shadow-2xl p-6 max-w-md mx-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center">
+                <Network className="w-6 h-6 text-zinc-700" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                  构建知识图谱
+                </h3>
+                <p className="text-gray-500 text-sm leading-relaxed">
+                  将为 <span className="font-medium text-gray-900">{kb?.documents.filter(d => d.status === 'completed').length || 0}</span> 个文档构建知识图谱索引。
+                  <br />
+                  此过程需要调用 AI 提取实体关系，可能需要 1-3 分钟。
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setShowConfirmDialog(false)}
+                className="px-5 border-gray-200 hover:bg-gray-50"
+              >
+                取消
+              </Button>
+              <Button
+                onClick={handleRebuildGraph}
+                className="bg-zinc-900 hover:bg-zinc-800 text-white px-5"
+              >
+                <Network className="w-4 h-4 mr-2" />
+                开始构建
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
