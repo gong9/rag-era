@@ -111,26 +111,26 @@ export default function DashboardPage() {
 
       {/* Navbar */}
       <header className="sticky top-0 z-30 w-full border-b border-zinc-200 bg-white/80 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shadow-md">
-              <Command className="w-4 h-4 text-white" />
+        <div className="container mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-zinc-900 rounded-lg flex items-center justify-center shadow-md">
+              <Command className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
             </div>
-            <span className="font-bold text-lg tracking-tight text-zinc-900">
+            <span className="font-bold text-base sm:text-lg tracking-tight text-zinc-900">
               RAG Knowledge
             </span>
           </div>
           
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2.5 px-3 py-1.5 bg-white border border-zinc-200 rounded-full hover:bg-zinc-50 transition-colors cursor-default shadow-sm">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-2.5 px-2 sm:px-3 py-1.5 bg-white border border-zinc-200 rounded-full hover:bg-zinc-50 transition-colors cursor-default shadow-sm">
               <div className="w-5 h-5 rounded-full bg-zinc-900 flex items-center justify-center text-[10px] font-bold text-white">
                 {session?.user?.name?.[0]?.toUpperCase()}
               </div>
-              <span className="text-sm font-medium text-zinc-600">
+              <span className="hidden sm:inline text-sm font-medium text-zinc-600">
                 {session?.user?.name}
               </span>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => signOut()} className="text-zinc-400 hover:text-zinc-900 transition-colors hover:bg-zinc-100">
+            <Button variant="ghost" size="icon" onClick={() => signOut()} className="text-zinc-400 hover:text-zinc-900 transition-colors hover:bg-zinc-100 h-8 w-8 sm:h-10 sm:w-10">
               <LogOut className="w-4 h-4" />
             </Button>
           </div>
@@ -138,101 +138,110 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-10 space-y-10">
+      <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-10">
         
         {/* Dashboard Header */}
-        <div className="flex flex-col md:flex-row justify-between items-end gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex flex-col gap-4 sm:gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-zinc-900">概览</h1>
-            <p className="text-zinc-500 mt-2">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900">概览</h1>
+            <p className="text-zinc-500 mt-1 sm:mt-2 text-sm sm:text-base">
               管理您的知识库集合，上传文档构建索引。
             </p>
           </div>
-          <div className="flex gap-3">
-            <Card className="flex items-center gap-3 px-4 py-2 border border-zinc-200 shadow-sm bg-white hover:border-zinc-300 transition-colors">
-              <Database className="w-4 h-4 text-zinc-400" />
-              <div className="flex gap-2 text-sm">
-                <span className="text-zinc-500">知识库</span>
-                <span className="font-semibold text-zinc-900">{totalKBs}</span>
-              </div>
-            </Card>
-            <Card className="flex items-center gap-3 px-4 py-2 border border-zinc-200 shadow-sm bg-white hover:border-zinc-300 transition-colors">
-              <FileText className="w-4 h-4 text-zinc-400" />
-              <div className="flex gap-2 text-sm">
-                <span className="text-zinc-500">文档</span>
-                <span className="font-semibold text-zinc-900">{totalDocuments}</span>
-              </div>
-            </Card>
-            <Button 
-              onClick={() => router.push('/dashboard/eval')} 
-              variant="outline"
-              className="border-violet-200 text-violet-600 hover:bg-violet-50 transition-all"
-            >
-              <FlaskConical className="w-4 h-4 mr-2" />
-              评估
-            </Button>
-            <Button 
-              onClick={() => setShowCreateForm(true)} 
-              className="bg-zinc-900 hover:bg-zinc-800 text-white shadow-lg shadow-zinc-200 transition-all hover:-translate-y-0.5"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              新建
-            </Button>
+          
+          {/* Stats and Actions - responsive layout */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+            {/* Stats Cards */}
+            <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-1 sm:pb-0">
+              <Card className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 border border-zinc-200 shadow-sm bg-white hover:border-zinc-300 transition-colors flex-shrink-0">
+                <Database className="w-4 h-4 text-zinc-400" />
+                <div className="flex gap-1.5 sm:gap-2 text-sm">
+                  <span className="text-zinc-500">知识库</span>
+                  <span className="font-semibold text-zinc-900">{totalKBs}</span>
+                </div>
+              </Card>
+              <Card className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 border border-zinc-200 shadow-sm bg-white hover:border-zinc-300 transition-colors flex-shrink-0">
+                <FileText className="w-4 h-4 text-zinc-400" />
+                <div className="flex gap-1.5 sm:gap-2 text-sm">
+                  <span className="text-zinc-500">文档</span>
+                  <span className="font-semibold text-zinc-900">{totalDocuments}</span>
+                </div>
+              </Card>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex gap-2 sm:gap-3">
+              <Button 
+                onClick={() => router.push('/dashboard/eval')} 
+                variant="outline"
+                className="border-violet-200 text-violet-600 hover:bg-violet-50 transition-all flex-1 sm:flex-none text-sm sm:text-base h-9 sm:h-10"
+              >
+                <FlaskConical className="w-4 h-4 mr-1.5 sm:mr-2" />
+                评估
+              </Button>
+              <Button 
+                onClick={() => setShowCreateForm(true)} 
+                className="bg-zinc-900 hover:bg-zinc-800 text-white shadow-lg shadow-zinc-200 transition-all hover:-translate-y-0.5 flex-1 sm:flex-none text-sm sm:text-base h-9 sm:h-10"
+              >
+                <Plus className="w-4 h-4 mr-1.5 sm:mr-2" />
+                新建
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* Knowledge Bases Grid */}
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {[1, 2, 3].map((i) => (
-                <Card key={i} className="h-48 animate-pulse bg-white border border-zinc-100" />
+                <Card key={i} className="h-44 sm:h-48 animate-pulse bg-white border border-zinc-100" />
               ))}
             </div>
           ) : knowledgeBases.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 bg-white rounded-xl border border-dashed border-zinc-200 animate-in fade-in zoom-in-95 duration-500">
-              <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center mb-4">
-                <BookOpen className="w-8 h-8 text-zinc-300" />
+            <div className="flex flex-col items-center justify-center py-16 sm:py-24 bg-white rounded-xl border border-dashed border-zinc-200 animate-in fade-in zoom-in-95 duration-500">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-zinc-50 rounded-full flex items-center justify-center mb-3 sm:mb-4">
+                <BookOpen className="w-7 h-7 sm:w-8 sm:h-8 text-zinc-300" />
               </div>
-              <h3 className="text-lg font-medium text-zinc-900">暂无知识库</h3>
-              <p className="text-zinc-500 mt-1 mb-6 text-sm">开始创建您的第一个知识库</p>
+              <h3 className="text-base sm:text-lg font-medium text-zinc-900">暂无知识库</h3>
+              <p className="text-zinc-500 mt-1 mb-4 sm:mb-6 text-sm">开始创建您的第一个知识库</p>
               <Button onClick={() => setShowCreateForm(true)} variant="outline" className="border-zinc-200 hover:bg-zinc-50 text-zinc-900">
                 立即创建
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {knowledgeBases.map((kb, index) => (
                 <Card 
                   key={kb.id} 
-                  className="group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-zinc-200/50 hover:-translate-y-1 border-zinc-200 bg-white cursor-pointer animate-in fade-in slide-in-from-bottom-4 fill-mode-forwards"
+                  className="group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-zinc-200/50 active:scale-[0.98] sm:hover:-translate-y-1 border-zinc-200 bg-white cursor-pointer animate-in fade-in slide-in-from-bottom-4 fill-mode-forwards"
                   style={{ animationDelay: `${index * 50}ms` }}
                   onClick={() => router.push(`/dashboard/${kb.id}`)}
                 >
-                  <CardHeader className="pb-4 pt-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="w-10 h-10 rounded-lg border border-zinc-100 bg-zinc-50 flex items-center justify-center text-zinc-500 group-hover:border-zinc-200 group-hover:bg-white group-hover:text-zinc-900 transition-all duration-300 shadow-sm">
-                        <Database className="w-5 h-5" />
+                  <CardHeader className="pb-3 sm:pb-4 pt-4 sm:pt-6 px-4 sm:px-6">
+                    <div className="flex justify-between items-start mb-3 sm:mb-4">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg border border-zinc-100 bg-zinc-50 flex items-center justify-center text-zinc-500 group-hover:border-zinc-200 group-hover:bg-white group-hover:text-zinc-900 transition-all duration-300 shadow-sm">
+                        <Database className="w-4 h-4 sm:w-5 sm:h-5" />
                       </div>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-zinc-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all duration-300"
+                        className="h-8 w-8 text-zinc-400 hover:text-red-600 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300"
                         onClick={(e) => handleDelete(kb.id, e)}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
-                    <CardTitle className="text-lg font-semibold text-zinc-900 group-hover:text-black transition-colors line-clamp-1">
+                    <CardTitle className="text-base sm:text-lg font-semibold text-zinc-900 group-hover:text-black transition-colors line-clamp-1">
                       {kb.name}
                     </CardTitle>
-                    <CardDescription className="line-clamp-2 mt-1.5 text-sm text-zinc-500 h-10">
+                    <CardDescription className="line-clamp-2 mt-1 sm:mt-1.5 text-sm text-zinc-500 h-10">
                       {kb.description || '暂无描述信息...'}
                     </CardDescription>
                   </CardHeader>
                   
-                  <CardContent className="pb-4">
-                    <div className="flex items-center gap-4 text-xs text-zinc-500 font-medium">
+                  <CardContent className="pb-3 sm:pb-4 px-4 sm:px-6">
+                    <div className="flex items-center gap-3 sm:gap-4 text-xs text-zinc-500 font-medium">
                       <div className="flex items-center gap-1.5">
                         <FileText className="w-3.5 h-3.5" />
                         {kb._count.documents} 文档
@@ -245,7 +254,7 @@ export default function DashboardPage() {
                     </div>
                   </CardContent>
 
-                  <CardFooter className="pt-0 pb-5 px-6">
+                  <CardFooter className="pt-0 pb-4 sm:pb-5 px-4 sm:px-6">
                     <div className="w-full flex items-center text-sm font-medium text-zinc-400 group-hover:text-zinc-900 transition-colors gap-1 group-hover:gap-2 duration-300">
                       <span>管理知识库</span>
                       <ChevronRight className="w-4 h-4" />
@@ -260,13 +269,13 @@ export default function DashboardPage() {
 
       {/* Create Form Modal */}
       {showCreateForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <Card className="w-full max-w-md shadow-xl border-0 animate-in zoom-in-95 duration-200 bg-white">
-            <CardHeader>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/20 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200">
+          <Card className="w-full sm:max-w-md shadow-xl border-0 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 bg-white rounded-t-2xl sm:rounded-xl">
+            <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6">
               <CardTitle className="text-lg">新建知识库</CardTitle>
               <CardDescription>配置基本信息</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4 sm:px-6 pb-6 sm:pb-6">
               <form onSubmit={handleCreate} className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">名称</label>
@@ -275,7 +284,7 @@ export default function DashboardPage() {
                     onChange={(e) => setNewKB({ ...newKB, name: e.target.value })}
                     placeholder="例如：技术文档"
                     required
-                    className="bg-white"
+                    className="bg-white h-11"
                   />
                 </div>
                 <div className="space-y-2">
@@ -284,14 +293,14 @@ export default function DashboardPage() {
                     value={newKB.description}
                     onChange={(e) => setNewKB({ ...newKB, description: e.target.value })}
                     placeholder="简要描述..."
-                    className="bg-white"
+                    className="bg-white h-11"
                   />
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => setShowCreateForm(false)}>
+                  <Button type="button" variant="outline" className="flex-1 h-11" onClick={() => setShowCreateForm(false)}>
                     取消
                   </Button>
-                  <Button type="submit" className="flex-1 bg-black hover:bg-gray-800 text-white" disabled={creating}>
+                  <Button type="submit" className="flex-1 h-11 bg-black hover:bg-gray-800 text-white" disabled={creating}>
                     {creating ? '创建中...' : '确认创建'}
                   </Button>
                 </div>

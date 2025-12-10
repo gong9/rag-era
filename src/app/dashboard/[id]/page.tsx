@@ -265,22 +265,22 @@ export default function KnowledgeBaseDetailPage() {
 
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20 backdrop-blur-xl bg-white/80">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')} className="text-gray-500 hover:text-black hover:bg-gray-100 -ml-2">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              返回列表
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+            <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')} className="text-gray-500 hover:text-black hover:bg-gray-100 -ml-2 flex-shrink-0 h-8 sm:h-9 px-2 sm:px-3">
+              <ArrowLeft className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">返回列表</span>
             </Button>
-            <div className="h-4 w-px bg-gray-200" />
-            <div className="flex flex-col">
-              <h1 className="text-base font-semibold text-gray-900 leading-none">{kb.name}</h1>
-              <span className="text-[10px] text-gray-500 mt-1 font-mono tracking-wide uppercase">ID: {kb.id.slice(0, 8)}</span>
+            <div className="h-4 w-px bg-gray-200 hidden sm:block" />
+            <div className="flex flex-col min-w-0">
+              <h1 className="text-sm sm:text-base font-semibold text-gray-900 leading-none truncate">{kb.name}</h1>
+              <span className="text-[10px] text-gray-500 mt-0.5 sm:mt-1 font-mono tracking-wide uppercase hidden sm:block">ID: {kb.id.slice(0, 8)}</span>
             </div>
           </div>
           <Button 
             onClick={() => router.push(`/chat/${kb.id}`)} 
             disabled={kb.documents.length === 0}
-            className={`shadow-sm transition-all text-sm h-9 px-4 rounded-full ${
+            className={`shadow-sm transition-all text-xs sm:text-sm h-8 sm:h-9 px-3 sm:px-4 rounded-full flex-shrink-0 ${
               kb.documents.length === 0 
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                 : 'bg-black hover:bg-gray-800 text-white'
@@ -292,43 +292,43 @@ export default function KnowledgeBaseDetailPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8 space-y-4 sm:space-y-8">
         
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <Card className="border border-gray-200 shadow-sm bg-white p-5 flex items-center justify-between group hover:border-gray-300 transition-colors">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <Card className="border border-gray-200 shadow-sm bg-white p-3 sm:p-5 flex items-center justify-between group hover:border-gray-300 transition-colors">
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">总文档数</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{kb.documents.length}</p>
+              <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">文档数</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">{kb.documents.length}</p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-gray-100 group-hover:text-gray-600 transition-colors">
-              <FileText className="w-5 h-5" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-gray-100 group-hover:text-gray-600 transition-colors">
+              <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </Card>
           
-          <Card className="border border-gray-200 shadow-sm bg-white p-5 flex items-center justify-between group hover:border-gray-300 transition-colors">
+          <Card className="border border-gray-200 shadow-sm bg-white p-3 sm:p-5 flex items-center justify-between group hover:border-gray-300 transition-colors">
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">已索引</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{kb.documents.filter(d => d.status === 'completed').length}</p>
+              <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">已索引</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">{kb.documents.filter(d => d.status === 'completed').length}</p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 group-hover:bg-green-100 transition-colors">
-              <Layers className="w-5 h-5" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 group-hover:bg-green-100 transition-colors">
+              <Layers className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm bg-white p-5 flex items-center justify-between group hover:border-gray-300 transition-colors">
+          <Card className="border border-gray-200 shadow-sm bg-white p-3 sm:p-5 flex items-center justify-between group hover:border-gray-300 transition-colors">
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">状态</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">活跃</p>
+              <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">状态</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 sm:mt-1">活跃</p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-colors">
-              <BarChart className="w-5 h-5" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-colors">
+              <BarChart className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </Card>
         </div>
 
         {/* Toolbar */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4">
           <div className="relative w-full sm:w-72 group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
             <Input 
@@ -339,7 +339,7 @@ export default function KnowledgeBaseDetailPage() {
           <Button 
             onClick={() => setShowUpload(!showUpload)} 
             className={cn(
-              "shadow-sm transition-all duration-300",
+              "shadow-sm transition-all duration-300 h-10 w-full sm:w-auto",
               showUpload ? "bg-gray-100 text-gray-900 hover:bg-gray-200" : "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 hover:border-gray-300"
             )}
           >
@@ -351,12 +351,12 @@ export default function KnowledgeBaseDetailPage() {
         {/* Upload Area (Collapsible) */}
         <div className={cn(
           "grid transition-all duration-300 ease-in-out overflow-hidden",
-          showUpload ? "grid-rows-[1fr] opacity-100 mb-8" : "grid-rows-[0fr] opacity-0"
+          showUpload ? "grid-rows-[1fr] opacity-100 mb-4 sm:mb-8" : "grid-rows-[0fr] opacity-0"
         )}>
           <div className="min-h-0">
             <div 
               className={cn(
-                "relative border-2 border-dashed rounded-xl p-10 transition-all duration-200 text-center cursor-pointer bg-white group",
+                "relative border-2 border-dashed rounded-xl p-6 sm:p-10 transition-all duration-200 text-center cursor-pointer bg-white group",
                 dragActive ? "border-black bg-gray-50" : "border-gray-200 hover:border-gray-400 hover:bg-gray-50",
                 selectedFile ? "border-black bg-gray-50" : ""
               )}
@@ -374,34 +374,34 @@ export default function KnowledgeBaseDetailPage() {
                 className="hidden"
               />
               
-              <div className="flex flex-col items-center gap-4">
+              <div className="flex flex-col items-center gap-3 sm:gap-4">
                 <div className={cn(
-                  "w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 shadow-sm",
+                  "w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-200 shadow-sm",
                   selectedFile ? "bg-black text-white" : "bg-gray-100 text-gray-400 group-hover:bg-white group-hover:shadow-md"
                 )}>
-                  {selectedFile ? <FileText className="w-6 h-6" /> : <Cloud className="w-7 h-7" />}
+                  {selectedFile ? <FileText className="w-5 h-5 sm:w-6 sm:h-6" /> : <Cloud className="w-6 h-6 sm:w-7 sm:h-7" />}
                 </div>
                 
                 <div className="space-y-1">
                   {selectedFile ? (
                     <>
-                      <p className="font-medium text-gray-900 text-lg">{selectedFile.name}</p>
+                      <p className="font-medium text-gray-900 text-base sm:text-lg break-all px-2">{selectedFile.name}</p>
                       <p className="text-sm text-gray-500">{(selectedFile.size / 1024).toFixed(2)} KB - 准备就绪</p>
                     </>
                   ) : (
                     <>
-                      <p className="font-medium text-gray-900 text-lg">点击或拖拽上传文档</p>
-                      <p className="text-sm text-gray-500">支持 PDF, Word, TXT, Markdown (最大 10MB)</p>
+                      <p className="font-medium text-gray-900 text-base sm:text-lg">点击或拖拽上传文档</p>
+                      <p className="text-xs sm:text-sm text-gray-500">支持 PDF, Word, TXT, Markdown (最大 10MB)</p>
                     </>
                   )}
                 </div>
 
                 {selectedFile && (
-                  <div className="flex gap-3 mt-2">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mt-2 w-full sm:w-auto">
                     <Button 
                       onClick={(e) => { e.stopPropagation(); handleUpload(); }} 
                       disabled={uploading}
-                      className="bg-black text-white hover:bg-gray-800 min-w-[120px]"
+                      className="bg-black text-white hover:bg-gray-800 min-w-[120px] h-10"
                     >
                       {uploading ? '上传处理中...' : '开始上传'}
                     </Button>
@@ -409,6 +409,7 @@ export default function KnowledgeBaseDetailPage() {
                       onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }}
                       variant="outline"
                       disabled={uploading}
+                      className="h-10"
                     >
                       取消
                     </Button>
@@ -419,51 +420,36 @@ export default function KnowledgeBaseDetailPage() {
           </div>
         </div>
 
-        {/* Documents Table */}
-        <Card className="border border-gray-200 shadow-sm bg-white overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-gray-500 uppercase bg-gray-50/50 border-b border-gray-100">
-                <tr>
-                  <th className="px-6 py-4 font-medium w-[40%]">文档名称</th>
-                  <th className="px-6 py-4 font-medium">上传时间</th>
-                  <th className="px-6 py-4 font-medium">大小</th>
-                  <th className="px-6 py-4 font-medium">状态</th>
-                  <th className="px-6 py-4 font-medium text-right">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {kb.documents.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-20 text-center text-gray-500">
-                      <div className="flex flex-col items-center gap-2">
-                        <FileText className="w-8 h-8 text-gray-300" />
-                        <p>暂无文档数据</p>
+        {/* Documents - Mobile Cards / Desktop Table */}
+        {kb.documents.length === 0 ? (
+          <Card className="border border-gray-200 shadow-sm bg-white p-8 sm:p-16">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <FileText className="w-8 h-8 text-gray-300" />
+              <p className="text-gray-500">暂无文档数据</p>
+            </div>
+          </Card>
+        ) : (
+          <>
+            {/* Mobile Card View */}
+            <div className="sm:hidden space-y-3">
+              {kb.documents.map((doc) => (
+                <Card key={doc.id} className="border border-gray-200 shadow-sm bg-white p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500">
+                      {getFileIcon(doc.name)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 text-sm truncate" title={doc.name}>
+                        {doc.name}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                        <span>{formatDate(doc.createdAt)}</span>
+                        {doc.size && <span>· {doc.size}</span>}
                       </div>
-                    </td>
-                  </tr>
-                ) : (
-                  kb.documents.map((doc) => (
-                    <tr key={doc.id} className="group hover:bg-gray-50/80 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex-shrink-0 w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-white group-hover:shadow-sm transition-all">
-                            {getFileIcon(doc.name)}
-                          </div>
-                          <span className="font-medium text-gray-900 truncate max-w-[200px] sm:max-w-xs" title={doc.name}>
-                            {doc.name}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-gray-500 font-mono text-xs">
-                        {formatDate(doc.createdAt)}
-                      </td>
-                      <td className="px-6 py-4 text-gray-500 font-mono text-xs">
-                        {doc.size || '-'}
-                      </td>
-                      <td className="px-6 py-4">
+                      {/* Status */}
+                      <div className="mt-2">
                         {doc.status === 'processing' && doc.processingProgress !== undefined ? (
-                          <div className="space-y-1.5 min-w-[180px]">
+                          <div className="space-y-1.5">
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-gray-600 font-medium">{doc.processingMessage || '处理中...'}</span>
                               <span className="text-gray-500 font-mono">{doc.processingProgress}%</span>
@@ -477,10 +463,10 @@ export default function KnowledgeBaseDetailPage() {
                           </div>
                         ) : (
                           <div className={cn(
-                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
-                            doc.status === 'completed' ? "bg-white text-gray-700 border-gray-200 group-hover:border-green-200 group-hover:text-green-700 group-hover:bg-green-50" :
-                            doc.status === 'processing' || doc.status === 'pending' ? "bg-white text-blue-700 border-blue-200 bg-blue-50" :
-                            "bg-white text-red-700 border-red-200 bg-red-50"
+                            "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border",
+                            doc.status === 'completed' ? "text-green-700 border-green-200 bg-green-50" :
+                            doc.status === 'processing' || doc.status === 'pending' ? "text-blue-700 border-blue-200 bg-blue-50" :
+                            "text-red-700 border-red-200 bg-red-50"
                           )}>
                             {doc.status === 'completed' ? <div className="w-1.5 h-1.5 rounded-full bg-green-500" /> :
                              doc.status === 'processing' || doc.status === 'pending' ? <Clock className="w-3 h-3 animate-spin" /> :
@@ -492,24 +478,103 @@ export default function KnowledgeBaseDetailPage() {
                             </span>
                           </div>
                         )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
-                          onClick={() => handleDelete(doc.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </td>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-400 hover:text-red-600 hover:bg-red-50 h-8 w-8 p-0 flex-shrink-0"
+                      onClick={() => handleDelete(doc.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Desktop Table View */}
+            <Card className="hidden sm:block border border-gray-200 shadow-sm bg-white overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-gray-500 uppercase bg-gray-50/50 border-b border-gray-100">
+                    <tr>
+                      <th className="px-6 py-4 font-medium w-[40%]">文档名称</th>
+                      <th className="px-6 py-4 font-medium">上传时间</th>
+                      <th className="px-6 py-4 font-medium">大小</th>
+                      <th className="px-6 py-4 font-medium">状态</th>
+                      <th className="px-6 py-4 font-medium text-right">操作</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {kb.documents.map((doc) => (
+                      <tr key={doc.id} className="group hover:bg-gray-50/80 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex-shrink-0 w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-white group-hover:shadow-sm transition-all">
+                              {getFileIcon(doc.name)}
+                            </div>
+                            <span className="font-medium text-gray-900 truncate max-w-xs" title={doc.name}>
+                              {doc.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-500 font-mono text-xs">
+                          {formatDate(doc.createdAt)}
+                        </td>
+                        <td className="px-6 py-4 text-gray-500 font-mono text-xs">
+                          {doc.size || '-'}
+                        </td>
+                        <td className="px-6 py-4">
+                          {doc.status === 'processing' && doc.processingProgress !== undefined ? (
+                            <div className="space-y-1.5 min-w-[180px]">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-600 font-medium">{doc.processingMessage || '处理中...'}</span>
+                                <span className="text-gray-500 font-mono">{doc.processingProgress}%</span>
+                              </div>
+                              <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300 rounded-full"
+                                  style={{ width: `${doc.processingProgress}%` }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className={cn(
+                              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                              doc.status === 'completed' ? "bg-white text-gray-700 border-gray-200 group-hover:border-green-200 group-hover:text-green-700 group-hover:bg-green-50" :
+                              doc.status === 'processing' || doc.status === 'pending' ? "bg-white text-blue-700 border-blue-200 bg-blue-50" :
+                              "bg-white text-red-700 border-red-200 bg-red-50"
+                            )}>
+                              {doc.status === 'completed' ? <div className="w-1.5 h-1.5 rounded-full bg-green-500" /> :
+                               doc.status === 'processing' || doc.status === 'pending' ? <Clock className="w-3 h-3 animate-spin" /> :
+                               <AlertCircle className="w-3 h-3" />}
+                              <span>
+                                {doc.status === 'completed' ? '已索引' :
+                                 doc.status === 'processing' ? '处理中' :
+                                 doc.status === 'pending' ? '等待处理' : '失败'}
+                              </span>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                            onClick={() => handleDelete(doc.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </>
+        )}
       </main>
     </div>
   );
