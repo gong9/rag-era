@@ -14,6 +14,8 @@ export interface HybridSearchResult {
   content: string;
   score: number;
   source: 'vector' | 'keyword' | 'both';
+  contentType: 'document' | 'memory';  // 🔥 区分文档和记忆
+  metadata?: Record<string, any>;      // 原始 metadata
 }
 
 // 向量搜索结果
@@ -22,6 +24,8 @@ interface VectorResult {
   documentName: string;
   content: string;
   score: number;
+  contentType: 'document' | 'memory';
+  metadata?: Record<string, any>;
 }
 
 /**
@@ -44,6 +48,8 @@ export function reciprocalRankFusion(
     documentName: string;
     documentId?: string;
     source: 'vector' | 'keyword' | 'both';
+    contentType: 'document' | 'memory';
+    metadata?: Record<string, any>;
   }>();
 
   // 处理向量搜索结果
@@ -61,11 +67,13 @@ export function reciprocalRankFusion(
         content: result.content,
         documentName: result.documentName,
         source: 'vector',
+        contentType: result.contentType,  // 🔥 保留类型
+        metadata: result.metadata,
       });
     }
   });
 
-  // 处理关键词搜索结果
+  // 处理关键词搜索结果（只有文档，没有记忆）
   keywordResults.forEach((result, rank) => {
     const rrfScore = 1 / (k + rank + 1);
     const key = result.content.substring(0, 100);
@@ -81,6 +89,7 @@ export function reciprocalRankFusion(
         documentName: result.documentName,
         documentId: result.documentId,
         source: 'keyword',
+        contentType: 'document',  // 关键词搜索只有文档
       });
     }
   });
@@ -94,6 +103,8 @@ export function reciprocalRankFusion(
       content: data.content,
       score: data.score,
       source: data.source,
+      contentType: data.contentType,
+      metadata: data.metadata,
     }))
     .sort((a, b) => b.score - a.score);
 
@@ -111,12 +122,20 @@ async function vectorSearch(
   const retriever = index.asRetriever({ similarityTopK: topK });
   const nodes = await retriever.retrieve(query);
 
-  return nodes.map((node) => ({
-    id: node.node.id_,
-    documentName: node.node.metadata?.documentName || '未知文档',
-    content: (node.node as any).text || '',
-    score: node.score || 0,
-  }));
+  return nodes.map((node) => {
+    const metadata = node.node.metadata || {};
+    // 🔥 根据 metadata.type 区分记忆和文档
+    const isMemory = metadata.type === 'memory';
+    
+    return {
+      id: node.node.id_,
+      documentName: isMemory ? '用户记忆' : (metadata.documentName || '未知文档'),
+      content: (node.node as any).text || '',
+      score: node.score || 0,
+      contentType: isMemory ? 'memory' : 'document',
+      metadata,
+    };
+  });
 }
 
 /**
@@ -136,19 +155,34 @@ export async function hybridSearch(
     vectorTopK?: number;
     keywordLimit?: number;
     useKeyword?: boolean;
+    minVectorScore?: number;  // 🔥 向量搜索最小分数阈值
   } = {}
 ): Promise<HybridSearchResult[]> {
   const {
     vectorTopK = 8,
     keywordLimit = 8,
     useKeyword = true,
+    minVectorScore = 0.3,  // 🔥 默认阈值：向量相似度 < 0.3 的过滤掉
   } = options;
 
-  console.log(`[HybridSearch] Query: "${query}", vectorTopK: ${vectorTopK}, keywordLimit: ${keywordLimit}`);
+  console.log(`[HybridSearch] Query: "${query}", vectorTopK: ${vectorTopK}, keywordLimit: ${keywordLimit}, minScore: ${minVectorScore}`);
 
   // 1. 执行向量搜索
-  const vectorResults = await vectorSearch(index, query, vectorTopK);
+  let vectorResults = await vectorSearch(index, query, vectorTopK);
   console.log(`[HybridSearch] Vector search found ${vectorResults.length} results`);
+  
+  // 🔥 2. 用原始余弦相似度过滤低相关性结果（在 RRF 之前！）
+  const beforeFilter = vectorResults.length;
+  vectorResults = vectorResults.filter(r => {
+    if (r.score < minVectorScore) {
+      console.log(`[HybridSearch] Filtered low score (${r.score.toFixed(3)} < ${minVectorScore}): ${r.content.substring(0, 40)}...`);
+      return false;
+    }
+    return true;
+  });
+  if (vectorResults.length < beforeFilter) {
+    console.log(`[HybridSearch] Filtered out ${beforeFilter - vectorResults.length} low relevance results`);
+  }
 
   // 2. 检查 Meilisearch 是否可用
   let keywordResults: MeiliResult[] = [];
@@ -179,8 +213,13 @@ export async function hybridSearch(
 
   // Meilisearch 不可用时，只返回向量结果
   return vectorResults.map(r => ({
-    ...r,
+    id: r.id,
+    documentName: r.documentName,
+    content: r.content,
+    score: r.score,
     source: 'vector' as const,
+    contentType: r.contentType,
+    metadata: r.metadata,
   }));
 }
 

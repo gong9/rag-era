@@ -3,7 +3,7 @@
  * 负责评估 Agent 回答的质量并决定是否重试
  */
 import { Settings } from 'llamaindex';
-import type { IntentType } from './intent-analyzer';
+import type { IntentType } from '../context';
 
 /**
  * 评估上下文

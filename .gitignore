@@ -48,3 +48,4 @@ lightrag-service/venv/
 lightrag-service/__pycache__/
 *.pyc
 lightrag-service/lightrag-data/
+/lightrag-data/

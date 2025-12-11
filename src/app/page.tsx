@@ -18,7 +18,11 @@ import {
   Target,
   Shield,
   Wrench,
-  Network
+  Network,
+  Brain,
+  Layers,
+  RefreshCw,
+  Scissors
 } from 'lucide-react';
 
 // Agent 工具数据
@@ -39,6 +43,14 @@ const evalDimensions = [
   { name: '忠实度', desc: '回答是否基于检索内容', color: 'bg-zinc-100' },
   { name: '答案质量', desc: '正确性、完整性、清晰度', color: 'bg-zinc-100' },
   { name: '工具调用', desc: 'Agent 工具选择合理性', color: 'bg-zinc-100' },
+];
+
+// 上下文工程特性
+const contextFeatures = [
+  { icon: Brain, name: '智能记忆', desc: 'LLM 自动提取用户偏好、事实、指令' },
+  { icon: RefreshCw, name: '新鲜度优先', desc: '最近内容权重更高，过时内容自动衰减' },
+  { icon: Layers, name: '统一检索', desc: 'Memory + RAG 统一 RRF 混合搜索' },
+  { icon: Scissors, name: '语义压缩', desc: 'Token 接近上限时 LLM 自动压缩' },
 ];
 
 export default function LandingPage() {
@@ -190,11 +202,11 @@ export default function LandingPage() {
             拒绝 "Toy Demo"，打造<span className="font-semibold text-zinc-900 mx-1 sm:mx-2 border-b-2 sm:border-b-4 border-zinc-200/80">真正可用</span>的企业级知识库
           </p>
           
-          <p 
+<p 
             className="text-sm sm:text-lg text-zinc-400 mb-10 sm:mb-12 animate-slide-up font-mono bg-zinc-50 px-3 sm:px-4 py-2 rounded-lg border border-zinc-100/50 max-w-[95%] sm:max-w-none"
             style={{ animationDelay: '0.2s' }}
           >
-            &quot;半天写Demo，半年难上线&quot; —— 我们解决剩下的半年
+            Agentic RAG + Context Engineering —— 智能记忆 · 语义压缩 · Token 最优
           </p>
           
           <div 
@@ -256,8 +268,84 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* 上下文工程 */}
+      <section className="relative py-16 sm:py-32 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16 scroll-fade-in">
+            <span className="inline-flex items-center px-3 py-1 rounded-full border border-orange-200 bg-orange-50 text-xs sm:text-sm font-medium text-orange-700 mb-4">
+              <span className="flex h-2 w-2 rounded-full bg-orange-500 mr-2 animate-pulse"></span>
+              Context Engineering
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-zinc-900">
+              上下文工程
+            </h2>
+            <p className="text-zinc-500 text-lg max-w-2xl mx-auto">
+              告别简单的"对话历史塞入提示词"，智能构建最优上下文
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {contextFeatures.map((feature, index) => (
+              <div 
+                key={feature.name}
+                className="scroll-fade-in bg-white border border-zinc-200 rounded-xl p-6 hover:border-zinc-300 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-zinc-200/50 group"
+                style={{ transitionDelay: `${index * 50}ms` }}
+              >
+                <div className="w-12 h-12 bg-zinc-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-zinc-900 transition-colors duration-300">
+                  <feature.icon className="w-6 h-6 text-zinc-700 group-hover:text-white transition-colors duration-300" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-zinc-900">{feature.name}</h3>
+                <p className="text-zinc-500 text-sm">{feature.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* 架构流程简图 */}
+          <div className="mt-12 scroll-fade-in bg-white border border-zinc-200 rounded-2xl p-8 sm:p-12 shadow-sm">
+            <h4 className="text-lg font-semibold mb-8 text-center text-zinc-900">上下文引擎工作流</h4>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-2 text-center">
+              {[
+                { label: '用户查询', sub: 'Query' },
+                { label: '意图分析', sub: 'Intent' },
+                { label: '上下文引擎', sub: 'ContextEngine', highlight: true },
+                { label: 'ReAct Agent', sub: 'Tools' },
+                { label: '回答', sub: 'Answer' },
+              ].map((step, index) => (
+                <div key={step.label} className="flex items-center">
+                  <div className={`px-4 py-3 rounded-lg border ${step.highlight ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-zinc-50 border-zinc-200'}`}>
+                    <div className={`font-medium text-sm ${step.highlight ? 'text-white' : 'text-zinc-900'}`}>{step.label}</div>
+                    <div className={`text-xs ${step.highlight ? 'text-zinc-400' : 'text-zinc-400'}`}>{step.sub}</div>
+                  </div>
+                  {index < 4 && (
+                    <div className="hidden sm:block mx-2 text-zinc-300">→</div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="mt-8 flex flex-wrap justify-center gap-6 text-sm text-zinc-500">
+              <span className="flex items-center gap-2">
+                <Brain className="w-4 h-4 text-zinc-600" />
+                Memory 检索
+              </span>
+              <span className="flex items-center gap-2">
+                <Search className="w-4 h-4 text-zinc-600" />
+                RAG 混合搜索
+              </span>
+              <span className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-zinc-600" />
+                RRF 统一融合
+              </span>
+              <span className="flex items-center gap-2">
+                <Scissors className="w-4 h-4 text-zinc-600" />
+                Token 预算管理
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* 技术架构 */}
-      <section ref={archRef} className="relative py-16 sm:py-32 px-4">
+      <section ref={archRef} className="relative py-16 sm:py-32 px-4 bg-zinc-50/50">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-10 sm:mb-16 scroll-fade-in">
             <h2 className="text-2xl sm:text-4xl font-bold mb-4 text-zinc-900">

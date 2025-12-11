@@ -20,14 +20,14 @@ export {
 export { query, agenticQuery } from './agent';
 export type { AgentQueryResult } from './agent';
 
-// 导出意图分析
+// 导出意图分析（从上下文工程模块重导出，保持 API 兼容）
 export { 
   analyzeIntent, 
   generateDirectResponse, 
   shouldSkipAgent,
   intentTypes 
-} from './intent-analyzer';
-export type { IntentResult, IntentType } from './intent-analyzer';
+} from '../context';
+export type { IntentResult, IntentType } from '../context';
 
 // 导出输出解析
 export { parseAgentOutput, fixMermaidFormat, toolNameMap } from './output-parser';
@@ -104,9 +104,10 @@ export class LLMService {
     knowledgeBaseId: string, 
     question: string,
     chatHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+    sessionId?: string,
   ): Promise<any> {
     const { agenticQuery } = require('./agent');
-    return agenticQuery(knowledgeBaseId, question, chatHistory);
+    return agenticQuery(knowledgeBaseId, question, chatHistory, sessionId);
   }
 
   /**

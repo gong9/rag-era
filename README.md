@@ -2,7 +2,41 @@
 
 > 半天写Demo，半年难上线
 
-一个支持 **Agentic RAG** 的智能知识库系统
+一个支持 **Agentic RAG + 上下文工程 (Context Engineering)** 的智能知识库系统
+
+## 🆕 上下文工程
+
+本项目实现了完整的**上下文工程系统**，参考 [mem0](https://github.com/mem0ai/mem0) 设计思路，告别简单的"对话历史塞入提示词"方式。
+
+### 核心特性
+
+| 特性 | 说明 |
+|------|------|
+| 🧠 **智能记忆** | LLM 自动提取用户偏好、事实、上下文指令，存储到向量数据库 |
+| 🔄 **新鲜度优先** | 最近访问的内容权重更高，过时内容自动衰减 |
+| 📊 **统一检索** | Memory + RAG 统一使用 RRF 混合搜索，一致的评分机制 |
+| ✂️ **语义压缩** | Token 接近上限时，LLM 自动压缩低优先级内容 |
+| 🎯 **意图对齐** | 上下文权重根据用户意图动态调整 |
+| ⚡ **自适应更新** | Agent 多轮推理时，自动触发上下文刷新 |
+
+### 架构
+
+```
+用户查询 → 意图分析 → 上下文引擎 → ReAct Agent → 回答
+                         │
+          ┌──────────────┼──────────────┐
+          ▼              ▼              ▼
+     智能记忆        RAG检索        对话历史
+    (Memory)      (Documents)     (Summary)
+          │              │              │
+          └──────────────┴──────────────┘
+                         │
+                    RRF 统一融合
+                         │
+                    Token 预算管理
+                         │
+                    语义压缩（可选）
+```
 
 ## 演示截图
 
@@ -25,12 +59,43 @@
 - **文档管理**: 支持 PDF、DOCX、TXT、MD 等格式上传和索引
 - **智能问答**: 基于知识库内容的精准上下文问答
 - **Agentic RAG**: ReAct Agent 可自主选择工具进行多轮推理
+- **上下文工程**: 智能记忆 + RAG优化 + 语义压缩，最大化 Token 价值
 - **混合搜索**: 向量检索 + 关键词检索，RRF 融合排序
 - **知识图谱**: LightRAG 自动抽取实体关系，支持图谱可视化
 - **AI 图表生成**: 两步 LLM 生成（逻辑分析 → Mermaid），确保流程正确
 - **意图驱动**: LLM 自动识别用户意图，智能路由到合适的工具
 - **质量评估**: 回答质量自动检测，低质量时自动重试（最多 3 次）
 - **RAG 评估系统**: 四维度 LLM Judge 自动评分，支持 SSE 实时进度推送
+
+### 上下文引擎
+
+上下文引擎 (`ContextEngine`) 是系统的核心，负责智能构建 Agent 所需的上下文：
+
+```typescript
+// 核心入口
+const contextEngine = getContextEngine();
+const result = await contextEngine.buildContext({
+  knowledgeBaseId,
+  sessionId,
+  userId,
+  query,
+  chatHistory,
+  maxTokens: 3000,  // Token 预算
+  intent,           // 意图分析结果
+});
+
+// 返回结果
+result.context    // 优化后的上下文字符串
+result.memories   // 相关记忆
+result.ragResults // RAG 检索结果
+result.stats      // Token 使用统计
+```
+
+**三阶段处理流程**：
+
+1. **Phase 1 - 记忆系统**: 从向量数据库检索相关记忆
+2. **Phase 2 - RAG 检索**: 混合搜索获取文档片段
+3. **Phase 3 - 上下文优化**: 多源合并 + 意图对齐 + 语义压缩
 
 ### Agent 工具箱
 
@@ -65,7 +130,7 @@ Agent 会自动分析用户问题的意图：
 每次查询会记录完整的执行链路，用于质量评估：
 
 ```
-1. 用户问题 → 2. 意图判断 → 3. 预检索 → 4. Agent工具调用 → 5. 质量评估 → 6. 最终回答
+1. 用户问题 → 2. 意图判断 → 3. 上下文引擎 → 4. Agent工具调用 → 5. 质量评估 → 6. 最终回答
 ```
 
 ## 技术架构
@@ -81,8 +146,17 @@ Agent 会自动分析用户问题的意图：
 └──────────────────────────┬──────────────────────────────────┘
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    预检索 (Pre-retrieval)                    │
-│            混合搜索 = 向量检索 + 关键词检索                    │
+│                   上下文引擎 (ContextEngine)                  │
+│  ┌──────────┬──────────────────────┬──────────┐            │
+│  │ 记忆检索  │  RAG 混合搜索        │ 对话历史  │            │
+│  │ (Memory) │ (Vector+Keyword+Graph)│ (Summary) │            │
+│  └────┬─────┴──────────┬───────────┴────┬─────┘            │
+│       │                │                │                   │
+│       └────────────────┼────────────────┘                   │
+│                        ▼                                    │
+│              RRF 统一融合 + Token预算管理                      │
+│                        ▼                                    │
+│              语义压缩（接近预算时触发）                         │
 └──────────────────────────┬──────────────────────────────────┘
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
@@ -283,9 +357,24 @@ src/
 ├── components/            # React 组件
 │   └── DiagramMessage.tsx # 图表渲染组件 (Excalidraw)
 ├── lib/                   # 核心库
-│   ├── llm.ts            # LLM 服务 & Agentic RAG
-│   ├── meilisearch.ts    # Meilisearch 服务
+│   ├── llm/              # LLM 服务 & Agentic RAG
+│   │   ├── agent.ts      # ReAct Agent 核心
+│   │   └── index.ts      # LLM 服务入口
+│   ├── context/          # 🆕 上下文工程
+│   │   ├── engine.ts     # 上下文引擎核心
+│   │   ├── intent/       # 意图分析
+│   │   ├── optimizer/    # 上下文优化器
+│   │   │   ├── compressor.ts  # 语义压缩
+│   │   │   └── merger.ts      # 多源合并
+│   │   └── rag/          # RAG 优化
+│   │       ├── query-rewriter.ts  # 查询改写
+│   │       └── dedup-filter.ts    # 去重过滤
+│   ├── memory/           # 🆕 智能记忆系统
+│   │   ├── extractor.ts  # 记忆提取
+│   │   ├── store.ts      # 记忆存储
+│   │   └── freshness.ts  # 新鲜度评分
 │   ├── hybrid-search.ts  # 混合搜索 & RRF 融合
+│   ├── meilisearch.ts    # Meilisearch 服务
 │   ├── mermaid-cleaner.ts # Mermaid 语法清洗
 │   ├── eval-generator.ts # 评估问题自动生成
 │   ├── eval-service.ts   # 评估服务（运行评测、保存结果）
