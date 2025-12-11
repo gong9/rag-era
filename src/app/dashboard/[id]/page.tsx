@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Upload, Trash2, FileText, CheckCircle, XCircle, Clock, Search, File, FileCode, AlertCircle, Cloud, X, Layers, BarChart, Network, RefreshCw, Eye } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, FileText, CheckCircle, XCircle, Clock, Search, File, FileCode, AlertCircle, Cloud, X, Layers, BarChart, Network, RefreshCw, Eye, MessageSquare } from 'lucide-react';
 import { formatDate, cn } from '@/lib/utils';
 
 // 动态导入图谱可视化组件
@@ -443,18 +443,6 @@ export default function KnowledgeBaseDetailPage() {
               <span className="text-[10px] text-gray-500 mt-1 font-mono tracking-wide uppercase">ID: {kb.id.slice(0, 8)}</span>
             </div>
           </div>
-          <Button 
-            onClick={() => router.push(`/chat/${kb.id}`)} 
-            disabled={kb.documents.length === 0}
-            className={`shadow-sm transition-all text-sm h-9 px-4 rounded-full ${
-              kb.documents.length === 0 
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                : 'bg-black hover:bg-gray-800 text-white'
-            }`}
-            title={kb.documents.length === 0 ? '请先上传文档' : '开始与知识库对话'}
-          >
-            开始对话
-          </Button>
         </div>
       </header>
 
@@ -503,71 +491,75 @@ export default function KnowledgeBaseDetailPage() {
             />
           </div>
           <div className="flex gap-2 items-center">
-            {/* 重建图谱索引按钮 + 进度 */}
+            {/* 图谱功能（合并为一个按钮） */}
             <div className="flex items-center gap-2">
               <Button 
-                onClick={handleShowBuildConfirm}
-                disabled={rebuildingGraph || kb.documents.filter(d => d.status === 'completed').length === 0}
+                onClick={() => {
+                  if (graphStatus === 'done') {
+                    setShowGraphViewer(true);
+                  } else {
+                    handleShowBuildConfirm();
+                  }
+                }}
+                disabled={rebuildingGraph || (graphStatus !== 'done' && kb.documents.filter(d => d.status === 'completed').length === 0)}
                 className={cn(
-                  "shadow-sm transition-all duration-300 relative overflow-hidden",
-                  graphStatus === 'done' 
-                    ? "bg-purple-100 text-purple-700 border border-purple-200 hover:bg-purple-200" 
-                    : graphStatus === 'error'
-                    ? "bg-red-50 text-red-700 border border-red-200"
-                    : "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 hover:border-gray-300",
-                  rebuildingGraph && "opacity-90"
+                  "shadow-sm transition-all duration-300 relative overflow-hidden min-w-[130px]",
+                  // 样式逻辑：
+                  // 1. 构建中: 紫色背景
+                  // 2. 已完成: 黑色背景 (查看模式)
+                  // 3. 未构建: 白色背景 (构建模式)
+                  rebuildingGraph 
+                    ? "bg-purple-50 text-purple-700 border border-purple-200" 
+                    : graphStatus === 'done'
+                    ? "bg-white text-zinc-900 border border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300"
+                    : "bg-white text-zinc-900 border border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300"
                 )}
-                title="为已有文档构建知识图谱索引（LightRAG）"
+                title={
+                  rebuildingGraph ? "正在构建图谱..." :
+                  graphStatus === 'done' ? "查看知识图谱" :
+                  "构建知识图谱索引"
+                }
               >
                 {/* 进度条背景 */}
                 {rebuildingGraph && (
                   <div 
-                    className="absolute inset-0 bg-purple-200/50 transition-all duration-300"
+                    className="absolute inset-0 bg-purple-100/50 transition-all duration-300"
                     style={{ width: `${graphProgress}%` }}
                   />
                 )}
-                <span className="relative flex items-center">
+                
+                <span className="relative flex items-center justify-center w-full">
                   {rebuildingGraph ? (
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      {graphProgress}%
+                    </>
                   ) : graphStatus === 'done' ? (
-                    <Network className="w-4 h-4 mr-2 text-purple-600" />
-                  ) : graphStatus === 'error' ? (
-                    <AlertCircle className="w-4 h-4 mr-2" />
+                    <>
+                      <Network className="w-4 h-4 mr-2" />
+                      查看图谱
+                    </>
                   ) : (
-                    <Network className="w-4 h-4 mr-2" />
+                    <>
+                      <Network className="w-4 h-4 mr-2" />
+                      构建图谱
+                    </>
                   )}
-                  {rebuildingGraph 
-                    ? `${graphProgress}%` 
-                    : graphStatus === 'done' 
-                    ? '图谱已构建' 
-                    : graphStatus === 'error'
-                    ? '构建失败'
-                    : '构建知识图谱'}
                 </span>
               </Button>
-              
-              {/* 进度消息 */}
-              {rebuildingGraph && graphMessage && (
-                <span className="text-xs text-gray-500 max-w-[200px] truncate" title={graphMessage}>
-                  {graphMessage}
-                </span>
+
+              {/* 如果已构建，额外显示一个小的重建按钮 */}
+              {graphStatus === 'done' && !rebuildingGraph && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleShowBuildConfirm}
+                  className="h-10 w-10 text-gray-400 hover:text-purple-600 hover:bg-purple-50 border border-transparent hover:border-purple-100"
+                  title="重建知识图谱"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
               )}
-              
-              {/* 查看图谱按钮 - 只有构建完成才可用 */}
-              <Button
-                onClick={() => setShowGraphViewer(true)}
-                disabled={graphStatus !== 'done'}
-                className={cn(
-                  "shadow-sm transition-all duration-300",
-                  graphStatus === 'done'
-                    ? "bg-zinc-900 hover:bg-zinc-800 text-white"
-                    : "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-                )}
-                title={graphStatus === 'done' ? "查看知识图谱可视化" : "请先构建知识图谱"}
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                查看图谱
-              </Button>
             </div>
             
             <Button 
@@ -579,6 +571,24 @@ export default function KnowledgeBaseDetailPage() {
             >
               {showUpload ? <X className="w-4 h-4 mr-2" /> : <Cloud className="w-4 h-4 mr-2" />}
               {showUpload ? '取消上传' : '上传文档'}
+            </Button>
+            
+            {/* 分隔线 */}
+            <div className="h-8 w-px bg-gray-200 mx-2" />
+            
+            {/* 开始对话 - 核心功能按钮 */}
+            <Button 
+              onClick={() => router.push(`/chat/${kb.id}`)} 
+              disabled={kb.documents.length === 0}
+              className={cn(
+                "shadow-lg transition-all duration-300 px-6 h-10 rounded-full font-medium group",
+                kb.documents.length === 0 
+                  ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200" 
+                  : "bg-gradient-to-r from-zinc-900 via-black to-zinc-900 text-white hover:shadow-xl hover:-translate-y-0.5 border border-zinc-800 bg-[length:200%_auto] hover:bg-right"
+              )}
+            >
+              <MessageSquare className="w-4 h-4 mr-2 transition-transform duration-300 group-hover:scale-110" />
+              开始对话
             </Button>
           </div>
         </div>

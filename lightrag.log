@@ -1,8 +1,41 @@
-2025-12-11 14:24:13,262 - __main__ - INFO - Starting LightRAG service on 0.0.0.0:8005
-2025-12-11 14:24:13,262 - __main__ - INFO - Storage directory: /Users/gongzhen/code/2025/hzm/rag/lightrag-data
-2025-12-11 14:24:13,262 - __main__ - INFO - LLM Model: qwen-turbo
-INFO:     Started server process [15338]
+2025-12-11 14:39:33,054 - __main__ - INFO - Starting LightRAG service on 0.0.0.0:8005
+2025-12-11 14:39:33,054 - __main__ - INFO - Storage directory: /Users/gongzhen/code/2025/hzm/rag/lightrag-data
+2025-12-11 14:39:33,054 - __main__ - INFO - LLM Model: qwen-turbo
+INFO:     Started server process [25289]
 INFO:     Waiting for application startup.
-2025-12-11 14:24:13,281 - main - INFO - LightRAG service starting...
+2025-12-11 14:39:33,075 - main - INFO - LightRAG service starting...
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8005 (Press CTRL+C to quit)
+INFO:     127.0.0.1:64459 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64461 - "GET /graph/eb733aca-cb43-4d57-b8d7-8dbbd95c596b?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64459 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64461 - "GET /graph/eb733aca-cb43-4d57-b8d7-8dbbd95c596b?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49893 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49895 - "GET /graph/eb733aca-cb43-4d57-b8d7-8dbbd95c596b?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49893 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49895 - "GET /graph/eb733aca-cb43-4d57-b8d7-8dbbd95c596b?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51106 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51110 - "GET /graph/eb733aca-cb43-4d57-b8d7-8dbbd95c596b?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51106 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51110 - "GET /graph/eb733aca-cb43-4d57-b8d7-8dbbd95c596b?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51106 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51110 - "GET /graph/eb733aca-cb43-4d57-b8d7-8dbbd95c596b?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51106 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51110 - "GET /graph/eb733aca-cb43-4d57-b8d7-8dbbd95c596b?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51221 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51223 - "GET /graph/eb733aca-cb43-4d57-b8d7-8dbbd95c596b?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51221 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51223 - "GET /graph/eb733aca-cb43-4d57-b8d7-8dbbd95c596b?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51257 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51259 - "GET /graph/eb772092-c6ce-4c5c-881d-5f0543a42c7e?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51257 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51259 - "GET /graph/eb772092-c6ce-4c5c-881d-5f0543a42c7e?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51289 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51291 - "GET /graph/eb733aca-cb43-4d57-b8d7-8dbbd95c596b?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51289 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51291 - "GET /graph/eb733aca-cb43-4d57-b8d7-8dbbd95c596b?limit=1 HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-12-11 14:53:09,942 - main - INFO - LightRAG service shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [25289]

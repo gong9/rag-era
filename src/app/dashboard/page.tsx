@@ -6,7 +6,7 @@ import { signOut, useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { BookOpen, LogOut, Plus, Trash2, MessageSquare, Search, FileText, ChevronRight, BarChart3, Database, Clock, FlaskConical } from 'lucide-react';
+import { BookOpen, LogOut, Plus, Trash2, MessageSquare, Search, FileText, ChevronRight, ChevronLeft, BarChart3, Database, Clock, FlaskConical } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -20,6 +20,8 @@ interface KnowledgeBase {
   };
 }
 
+const PAGE_SIZE = 6; // 每页显示 6 个知识库 (2行 x 3列)
+
 export default function DashboardPage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -28,6 +30,7 @@ export default function DashboardPage() {
   const [creating, setCreating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newKB, setNewKB] = useState({ name: '', description: '' });
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     fetchKnowledgeBases();
@@ -92,6 +95,19 @@ export default function DashboardPage() {
   // 计算统计数据
   const totalDocuments = knowledgeBases.reduce((acc, kb) => acc + kb._count.documents, 0);
   const totalKBs = knowledgeBases.length;
+
+  // 分页计算
+  const totalPages = Math.ceil(totalKBs / PAGE_SIZE);
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const endIndex = startIndex + PAGE_SIZE;
+  const currentKBs = knowledgeBases.slice(startIndex, endIndex);
+
+  // 当数据变化时重置到第一页
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [knowledgeBases.length, currentPage, totalPages]);
 
   return (
     <div className="min-h-screen bg-zinc-50/30 relative overflow-hidden">
@@ -175,9 +191,9 @@ export default function DashboardPage() {
               <Button 
                 onClick={() => router.push('/dashboard/eval')} 
                 variant="outline"
-                className="border-violet-200 text-violet-600 hover:bg-violet-50 transition-all flex-1 sm:flex-none text-sm sm:text-base h-9 sm:h-10"
+                className="border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 hover:border-zinc-300 transition-all flex-1 sm:flex-none text-sm sm:text-base h-9 sm:h-10"
               >
-                <FlaskConical className="w-4 h-4 mr-1.5 sm:mr-2" />
+                <BarChart3 className="w-4 h-4 mr-1.5 sm:mr-2" />
                 评估
               </Button>
               <Button 
@@ -211,59 +227,95 @@ export default function DashboardPage() {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-              {knowledgeBases.map((kb, index) => (
-                <Card 
-                  key={kb.id} 
-                  className="group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-zinc-200/50 active:scale-[0.98] sm:hover:-translate-y-1 border-zinc-200 bg-white cursor-pointer animate-in fade-in slide-in-from-bottom-4 fill-mode-forwards"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                  onClick={() => router.push(`/dashboard/${kb.id}`)}
-                >
-                  <CardHeader className="pb-3 sm:pb-4 pt-4 sm:pt-6 px-4 sm:px-6">
-                    <div className="flex justify-between items-start mb-3 sm:mb-4">
-                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg border border-zinc-100 bg-zinc-50 flex items-center justify-center text-zinc-500 group-hover:border-zinc-200 group-hover:bg-white group-hover:text-zinc-900 transition-all duration-300 shadow-sm">
-                        <Database className="w-4 h-4 sm:w-5 sm:h-5" />
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                {currentKBs.map((kb, index) => (
+                  <Card 
+                    key={kb.id} 
+                    className="group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-zinc-200/50 active:scale-[0.98] sm:hover:-translate-y-1 border-zinc-200 bg-white cursor-pointer animate-in fade-in slide-in-from-bottom-4 fill-mode-forwards"
+                    style={{ animationDelay: `${index * 50}ms` }}
+                    onClick={() => router.push(`/dashboard/${kb.id}`)}
+                  >
+                    <CardHeader className="pb-3 sm:pb-4 pt-4 sm:pt-6 px-4 sm:px-6">
+                      <div className="flex justify-between items-start mb-3 sm:mb-4">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg border border-zinc-100 bg-zinc-50 flex items-center justify-center text-zinc-500 group-hover:border-zinc-200 group-hover:bg-white group-hover:text-zinc-900 transition-all duration-300 shadow-sm">
+                          <Database className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-zinc-400 hover:text-red-600 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300"
+                          onClick={(e) => handleDelete(kb.id, e)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-zinc-400 hover:text-red-600 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300"
-                        onClick={(e) => handleDelete(kb.id, e)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    <CardTitle className="text-base sm:text-lg font-semibold text-zinc-900 group-hover:text-black transition-colors line-clamp-1">
-                      {kb.name}
-                    </CardTitle>
-                    <CardDescription className="line-clamp-2 mt-1 sm:mt-1.5 text-sm text-zinc-500 h-10">
-                      {kb.description || '暂无描述信息...'}
-                    </CardDescription>
-                  </CardHeader>
-                  
-                  <CardContent className="pb-3 sm:pb-4 px-4 sm:px-6">
-                    <div className="flex items-center gap-3 sm:gap-4 text-xs text-zinc-500 font-medium">
-                      <div className="flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5" />
-                        {kb._count.documents} 文档
+                      <CardTitle className="text-base sm:text-lg font-semibold text-zinc-900 group-hover:text-black transition-colors line-clamp-1">
+                        {kb.name}
+                      </CardTitle>
+                      <CardDescription className="line-clamp-2 mt-1 sm:mt-1.5 text-sm text-zinc-500 h-10">
+                        {kb.description || '暂无描述信息...'}
+                      </CardDescription>
+                    </CardHeader>
+                    
+                    <CardContent className="pb-3 sm:pb-4 px-4 sm:px-6">
+                      <div className="flex items-center gap-3 sm:gap-4 text-xs text-zinc-500 font-medium">
+                        <div className="flex items-center gap-1.5">
+                          <FileText className="w-3.5 h-3.5" />
+                          {kb._count.documents} 文档
+                        </div>
+                        <div className="w-1 h-1 bg-zinc-300 rounded-full" />
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" />
+                          {formatDate(kb.createdAt)}
+                        </div>
                       </div>
-                      <div className="w-1 h-1 bg-zinc-300 rounded-full" />
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5" />
-                        {formatDate(kb.createdAt)}
-                      </div>
-                    </div>
-                  </CardContent>
+                    </CardContent>
 
-                  <CardFooter className="pt-0 pb-4 sm:pb-5 px-4 sm:px-6">
-                    <div className="w-full flex items-center text-sm font-medium text-zinc-400 group-hover:text-zinc-900 transition-colors gap-1 group-hover:gap-2 duration-300">
-                      <span>管理知识库</span>
+                    <CardFooter className="pt-0 pb-4 sm:pb-5 px-4 sm:px-6">
+                      <div className="w-full flex items-center text-sm font-medium text-zinc-400 group-hover:text-zinc-900 transition-colors gap-1 group-hover:gap-2 duration-300">
+                        <span>管理知识库</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </div>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+
+              {/* 分页控件 */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-4 sm:pt-6">
+                  <span className="text-sm text-zinc-500">
+                    共 {totalKBs} 个知识库
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="h-8 w-8 p-0 border-zinc-200 hover:bg-zinc-50 disabled:opacity-50"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    
+                    <span className="text-sm text-zinc-600 min-w-[80px] text-center">
+                      {currentPage} / {totalPages}
+                    </span>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="h-8 w-8 p-0 border-zinc-200 hover:bg-zinc-50 disabled:opacity-50"
+                    >
                       <ChevronRight className="w-4 h-4" />
-                    </div>
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>
