@@ -1,49 +1,8 @@
-2025-12-11 17:28:55,399 - __main__ - INFO - Starting LightRAG service on 0.0.0.0:8005
-2025-12-11 17:28:55,399 - __main__ - INFO - Storage directory: /Users/gongzhen/code/2025/hzm/rag/lightrag-data
-2025-12-11 17:28:55,399 - __main__ - INFO - LLM Model: qwen-turbo
-INFO:     Started server process [26762]
+2025-12-12 12:02:06,442 - __main__ - INFO - Starting LightRAG service on 0.0.0.0:8005
+2025-12-12 12:02:06,442 - __main__ - INFO - Storage directory: /Users/gongzhen/code/2025/hzm/rag/lightrag-data
+2025-12-12 12:02:06,442 - __main__ - INFO - LLM Model: qwen-turbo
+INFO:     Started server process [45975]
 INFO:     Waiting for application startup.
-2025-12-11 17:28:55,418 - main - INFO - LightRAG service starting...
+2025-12-12 12:02:06,508 - main - INFO - LightRAG service starting...
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8005 (Press CTRL+C to quit)
-INFO:     127.0.0.1:64160 - "GET /health HTTP/1.1" 200 OK
-INFO: [_] Loaded graph from /Users/gongzhen/code/2025/hzm/rag/lightrag-data/kb_12efaa43-8d79-4f72-890e-3490abe879ad/graph_chunk_entity_relation.graphml with 17 nodes, 17 edges
-2025-12-11 17:37:25,291 - nano-vectordb - INFO - Load (17, 1024) data
-2025-12-11 17:37:25,291 - nano-vectordb - INFO - Init {'embedding_dim': 1024, 'metric': 'cosine', 'storage_file': '/Users/gongzhen/code/2025/hzm/rag/lightrag-data/kb_12efaa43-8d79-4f72-890e-3490abe879ad/vdb_entities.json'} 17 data
-2025-12-11 17:37:25,291 - nano-vectordb - INFO - Load (17, 1024) data
-2025-12-11 17:37:25,291 - nano-vectordb - INFO - Init {'embedding_dim': 1024, 'metric': 'cosine', 'storage_file': '/Users/gongzhen/code/2025/hzm/rag/lightrag-data/kb_12efaa43-8d79-4f72-890e-3490abe879ad/vdb_relationships.json'} 17 data
-2025-12-11 17:37:25,292 - nano-vectordb - INFO - Load (1, 1024) data
-2025-12-11 17:37:25,292 - nano-vectordb - INFO - Init {'embedding_dim': 1024, 'metric': 'cosine', 'storage_file': '/Users/gongzhen/code/2025/hzm/rag/lightrag-data/kb_12efaa43-8d79-4f72-890e-3490abe879ad/vdb_chunks.json'} 1 data
-INFO: [_] Process 26762 KV load full_docs with 1 records
-INFO: [_] Process 26762 KV load text_chunks with 1 records
-INFO: [_] Process 26762 KV load full_entities with 1 records
-INFO: [_] Process 26762 KV load full_relations with 1 records
-INFO: [_] Process 26762 KV load entity_chunks with 17 records
-INFO: [_] Process 26762 KV load relation_chunks with 17 records
-INFO: [_] Process 26762 KV load llm_response_cache with 6 records
-INFO: [_] Process 26762 doc status load doc_status with 1 records
-2025-12-11 17:37:25,294 - main - INFO - Created LightRAG instance for kb: 12efaa43-8d79-4f72-890e-3490abe879ad
-2025-12-11 17:37:25,294 - main - INFO - [12efaa43-8d79-4f72-890e-3490abe879ad] Query: '哪些员工可以享受2025年探亲费报销政策？' (mode: hybrid)
-INFO: LLM func: 4 new workers initialized (Timeouts: Func: 180s, Worker: 360s, Health Check: 375s)
-INFO:  == LLM cache == saving: hybrid:keywords:2f02c9c48226b740bcdfb1ffc64251a7
-INFO: Query nodes: 员工, 探亲费, 报销, 2025年 (top_k:40, cosine:0.2)
-INFO: Embedding func: 8 new workers initialized (Timeouts: Func: 30s, Worker: 60s, Health Check: 75s)
-INFO: Local query: 17 entites, 17 relations
-INFO: Query edges: 探亲费报销政策, 员工福利, 2025年政策 (top_k:40, cosine:0.2)
-INFO: Global query: 17 entites, 17 relations
-INFO: Raw search results: 17 entities, 17 relations, 0 vector chunks
-INFO: After truncation: 17 entities, 17 relations
-INFO: Selecting 1 from 1 entity-related chunks by vector similarity
-INFO: Find no additional relations-related chunks from 17 relations
-INFO: Round-robin merged chunks: 1 -> 1 (deduplicated 0)
-WARNING: Rerank is enabled but no rerank model is configured. Please set up a rerank model or set enable_rerank=False in query parameters.
-INFO: Final context: 17 entities, 17 relations, 1 chunks
-INFO: Final chunks S+F/O: E17/1
-INFO:  == LLM cache == saving: hybrid:query:d9f3ce08db18e99bcbb868d6ae7fff97
-2025-12-11 17:37:29,505 - main - INFO - [12efaa43-8d79-4f72-890e-3490abe879ad] Query result length: 307 chars
-INFO:     127.0.0.1:64162 - "POST /query HTTP/1.1" 200 OK
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2025-12-11 17:41:51,931 - main - INFO - LightRAG service shutting down...
-INFO:     Application shutdown complete.
-INFO:     Finished server process [26762]
