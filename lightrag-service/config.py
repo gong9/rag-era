@@ -1,26 +1,35 @@
 """
 LightRAG 服务配置
 """
+
 import os
 from dotenv import load_dotenv
 
 # 加载 .env 文件（从父目录）
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # LLM 配置（复用 Next.js 项目的配置）
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
-OPENAI_API_BASE = os.getenv('OPENAI_API_BASE', 'https://dashscope.aliyuncs.com/compatible-mode/v1')
-OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'qwen-turbo')
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_API_BASE = os.getenv(
+    "OPENAI_API_BASE", "https://dashscope.aliyuncs.com/compatible-mode/v1"
+)
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "qwen-turbo")
 
 # LightRAG 存储目录（使用绝对路径，相对于项目根目录）
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_DEFAULT_STORAGE = os.path.join(_PROJECT_ROOT, 'lightrag-data')
-LIGHTRAG_STORAGE_DIR = os.getenv('LIGHTRAG_STORAGE_DIR', _DEFAULT_STORAGE)
+_DEFAULT_STORAGE = os.path.join(_PROJECT_ROOT, "lightrag-data")
+LIGHTRAG_STORAGE_DIR = os.getenv("LIGHTRAG_STORAGE_DIR", _DEFAULT_STORAGE)
 
 # 服务配置
-SERVICE_HOST = os.getenv('LIGHTRAG_HOST', '0.0.0.0')
-SERVICE_PORT = int(os.getenv('LIGHTRAG_PORT', '8005'))
+SERVICE_HOST = os.getenv("LIGHTRAG_HOST", "0.0.0.0")
+SERVICE_PORT = int(os.getenv("LIGHTRAG_PORT", "8005"))
 
 # 日志级别
-LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
+# ========== 资源限制配置 ==========
+# 每个文档索引后的延迟（秒），0 表示不延迟
+INDEX_DELAY_SECONDS = float(os.getenv("LIGHTRAG_INDEX_DELAY", "0"))
+
+# LLM 请求并发数限制，0 表示不限制（依赖 nice 降低优先级）
+LLM_CONCURRENCY = int(os.getenv("LIGHTRAG_LLM_CONCURRENCY", "0"))

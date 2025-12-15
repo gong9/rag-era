@@ -65,8 +65,9 @@ start_lightrag() {
     # 安装依赖
     pip install -r requirements.txt -q 2>/dev/null
     
-    # 后台启动
-    nohup python main.py > "$PROJECT_DIR/lightrag.log" 2>&1 &
+    # 后台启动（使用 nice 降低 CPU 优先级，避免影响其他服务）
+    # nice -n 15: 优先级降低，让 Web 服务优先响应
+    nohup nice -n 15 python main.py > "$PROJECT_DIR/lightrag.log" 2>&1 &
     echo $! > "$LIGHTRAG_PID_FILE"
     
     sleep 2

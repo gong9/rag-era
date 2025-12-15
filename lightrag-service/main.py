@@ -22,6 +22,8 @@ from config import (
     SERVICE_HOST,
     SERVICE_PORT,
     LOG_LEVEL,
+    INDEX_DELAY_SECONDS,
+    LLM_CONCURRENCY,
 )
 
 # 注意：不要在 uvicorn 环境下使用 nest_asyncio.apply()
@@ -39,6 +41,9 @@ rag_instances: dict = {}
 
 # 索引任务状态
 indexing_tasks: dict = {}
+
+# LLM 请求并发限制（信号量），0 表示不限制
+llm_semaphore = asyncio.Semaphore(LLM_CONCURRENCY) if LLM_CONCURRENCY > 0 else None
 
 
 # ========== 自定义 LLM 函数（使用千问 API）==========
@@ -63,58 +68,75 @@ async def qwen_complete(
 
     messages.append({"role": "user", "content": prompt})
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            f"{OPENAI_API_BASE}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": OPENAI_MODEL,
-                "messages": messages,
-                "temperature": 0.7,
-                "max_tokens": 4096,
-            },
-        )
-
-        if response.status_code != 200:
-            logger.error(f"LLM API error: {response.status_code} - {response.text}")
-            raise HTTPException(
-                status_code=500, detail=f"LLM API error: {response.text}"
+    async def do_request():
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{OPENAI_API_BASE}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENAI_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": OPENAI_MODEL,
+                    "messages": messages,
+                    "temperature": 0.7,
+                    "max_tokens": 4096,
+                },
             )
 
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
+            if response.status_code != 200:
+                logger.error(f"LLM API error: {response.status_code} - {response.text}")
+                raise HTTPException(
+                    status_code=500, detail=f"LLM API error: {response.text}"
+                )
+
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
+
+    # 如果设置了并发限制，使用信号量
+    if llm_semaphore:
+        async with llm_semaphore:
+            return await do_request()
+    else:
+        return await do_request()
 
 
 async def qwen_embedding(texts: List[str]) -> List[List[float]]:
     """
     调用千问 Embedding API
     """
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            f"{OPENAI_API_BASE}/embeddings",
-            headers={
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "text-embedding-v3",
-                "input": texts,
-            },
-        )
 
-        if response.status_code != 200:
-            logger.error(
-                f"Embedding API error: {response.status_code} - {response.text}"
-            )
-            raise HTTPException(
-                status_code=500, detail=f"Embedding API error: {response.text}"
+    async def do_request():
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{OPENAI_API_BASE}/embeddings",
+                headers={
+                    "Authorization": f"Bearer {OPENAI_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "text-embedding-v3",
+                    "input": texts,
+                },
             )
 
-        data = response.json()
-        return [item["embedding"] for item in data["data"]]
+            if response.status_code != 200:
+                logger.error(
+                    f"Embedding API error: {response.status_code} - {response.text}"
+                )
+                raise HTTPException(
+                    status_code=500, detail=f"Embedding API error: {response.text}"
+                )
+
+            data = response.json()
+            return [item["embedding"] for item in data["data"]]
+
+    # 如果设置了并发限制，使用信号量
+    if llm_semaphore:
+        async with llm_semaphore:
+            return await do_request()
+    else:
+        return await do_request()
 
 
 # ========== Pydantic 模型 ==========
@@ -271,13 +293,20 @@ async def index_documents(request: IndexRequest, background_tasks: BackgroundTas
 
 
 async def index_documents_task(kb_id: str, documents: List[dict]):
-    """后台索引任务"""
+    """
+    后台索引任务
+    使用延迟和限流避免 CPU 过载，保证服务器可用性
+    """
     try:
         indexing_tasks[kb_id]["status"] = "indexing"
         indexing_tasks[kb_id]["message"] = "Creating knowledge graph..."
 
         rag = await get_or_create_rag(kb_id)
         total = len(documents)
+
+        logger.info(
+            f"[{kb_id}] Starting indexing with delay={INDEX_DELAY_SECONDS}s, concurrency={LLM_CONCURRENCY}"
+        )
 
         for i, doc in enumerate(documents):
             content = doc.get("content", "")
@@ -297,6 +326,14 @@ async def index_documents_task(kb_id: str, documents: List[dict]):
             indexing_tasks[kb_id]["progress"] = (i + 1) / total
             indexing_tasks[kb_id]["message"] = f"Indexed {i + 1}/{total}: {name}"
             logger.info(f"[{kb_id}] Indexed {i + 1}/{total}: {name}")
+
+            # 🔥 每个文档处理后延迟，避免 CPU 持续满载
+            # 这样其他服务（如 Next.js）可以获得 CPU 时间
+            if INDEX_DELAY_SECONDS > 0 and i < total - 1:
+                logger.debug(
+                    f"[{kb_id}] Throttling: sleeping {INDEX_DELAY_SECONDS}s..."
+                )
+                await asyncio.sleep(INDEX_DELAY_SECONDS)
 
         indexing_tasks[kb_id]["status"] = "completed"
         indexing_tasks[kb_id]["progress"] = 1.0

@@ -150,10 +150,10 @@ pip install -r requirements.txt -q
 pm2 stop $LIGHTRAG_NAME 2>/dev/null || true
 pm2 delete $LIGHTRAG_NAME 2>/dev/null || true
 
-# 启动 LightRAG 服务
-echo "🚀 启动 LightRAG 服务..."
+# 启动 LightRAG 服务（使用 nice 降低 CPU 优先级，避免影响 Web 服务）
+echo "🚀 启动 LightRAG 服务（低优先级模式）..."
 cd $REMOTE_DIR/lightrag-service
-pm2 start "venv/bin/python main.py" --name $LIGHTRAG_NAME --cwd $REMOTE_DIR/lightrag-service
+pm2 start "nice -n 15 venv/bin/python main.py" --name $LIGHTRAG_NAME --cwd $REMOTE_DIR/lightrag-service --interpreter none
 
 # 返回主目录
 cd $REMOTE_DIR

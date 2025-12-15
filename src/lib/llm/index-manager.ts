@@ -9,7 +9,6 @@ import * as path from 'path';
 import { configureLLM } from './config';
 import { prisma } from '../prisma';
 import { meilisearchService } from '../meilisearch';
-import { lightragClient } from '../lightrag-client';
 
 // 索引缓存
 const indexCache = new Map<string, VectorStoreIndex>();
@@ -208,50 +207,9 @@ export async function createOrUpdateIndex(
       console.error(`[LLM] Meilisearch indexing failed (continuing without it):`, meiliError);
     }
 
-    // 索引到 LightRAG
-    console.log(`[LLM] Indexing documents to LightRAG...`);
-    onProgress?.(47, '索引到 LightRAG（构建知识图谱）...');
-    
-    try {
-      const lightragAvailable = await lightragClient.isAvailable();
-      
-      if (lightragAvailable) {
-        const lightragDocs = [];
-        for (const [fileName, data] of documentContents) {
-          const searchName = fileName.replace(/^\d+_/, '');
-          const dbDoc = await prisma.document.findFirst({
-            where: {
-              knowledgeBaseId,
-              name: searchName,
-            },
-          });
-          
-          if (dbDoc && data.content) {
-            lightragDocs.push({
-              id: dbDoc.id,
-              name: fileName.replace(/\.[^/.]+$/, ''),
-              content: data.content,
-            });
-          }
-        }
-        
-        if (lightragDocs.length > 0) {
-          // 异步索引
-          lightragClient.index({
-            kb_id: knowledgeBaseId,
-            documents: lightragDocs,
-          }).then(() => {
-            console.log(`[LLM] ✅ LightRAG indexing started for ${lightragDocs.length} documents`);
-          }).catch((err) => {
-            console.error(`[LLM] LightRAG indexing failed:`, err);
-          });
-        }
-      } else {
-        console.log(`[LLM] LightRAG not available, skipping graph indexing`);
-      }
-    } catch (lightragError) {
-      console.error(`[LLM] LightRAG indexing failed (continuing without it):`, lightragError);
-    }
+    // 注意：LightRAG 知识图谱需要用户手动触发构建（通过 /api/lightrag/index API）
+    // 不再自动执行，避免处理时间过长
+    console.log(`[LLM] Skipping LightRAG auto-indexing (use manual trigger instead)`);
 
     // 创建存储上下文
     console.log(`[LLM] Creating storage context at ${storageDir}`);
