@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+// @ts-ignore
+import React, { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
@@ -221,7 +222,7 @@ export default function KnowledgeBaseDetailPage() {
     }
   };
 
-  const handleDrag = (e: React.DragEvent) => {
+  const handleDrag = (e: any) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.type === "dragenter" || e.type === "dragover") {
@@ -231,7 +232,7 @@ export default function KnowledgeBaseDetailPage() {
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (e: any) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
@@ -240,7 +241,7 @@ export default function KnowledgeBaseDetailPage() {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: any) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
     }
@@ -760,7 +761,7 @@ export default function KnowledgeBaseDetailPage() {
       {/* 图谱可视化弹窗 */}
       {showGraphViewer && kb && (
         <KnowledgeGraph 
-          kbId={kb.id} 
+          codeBaseId={kb.id} 
           onClose={() => setShowGraphViewer(false)} 
         />
       )}

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+// @ts-ignore
+import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { 
   Search, 
@@ -344,8 +345,62 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* 代码知识库 */}
+      <section className="relative py-16 sm:py-32 px-4 bg-zinc-50/50">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16 scroll-fade-in">
+            <span className="inline-flex items-center px-3 py-1 rounded-full border border-zinc-300 bg-zinc-100 text-xs sm:text-sm font-medium text-zinc-700 mb-4">
+              <span className="flex h-2 w-2 rounded-full bg-zinc-500 mr-2 animate-pulse"></span>
+              Code Intelligence
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-zinc-900">
+              代码知识库
+            </h2>
+            <p className="text-zinc-500 text-lg max-w-2xl mx-auto">
+              导入 GitHub 仓库，AI 自动理解代码结构，让你快速掌握任意开源项目
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: Zap, name: '秒级导入', desc: '大型仓库快速解析，按需加载文件树' },
+              { icon: Layers, name: '模块洞察', desc: '自动识别项目结构，提炼模块摘要' },
+              { icon: Search, name: '智能问答', desc: '用自然语言提问，精准定位代码逻辑' },
+              { icon: BarChart3, name: '架构可视化', desc: '模块关系图谱，一图看懂项目全貌' },
+            ].map((feature, index) => (
+              <div 
+                key={feature.name}
+                className="scroll-fade-in bg-white border border-zinc-200 rounded-xl p-6 hover:border-zinc-300 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-zinc-200/50 group"
+                style={{ transitionDelay: `${index * 50}ms` }}
+              >
+                <div className="w-12 h-12 bg-zinc-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-zinc-900 transition-colors duration-300">
+                  <feature.icon className="w-6 h-6 text-zinc-700 group-hover:text-white transition-colors duration-300" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-zinc-900">{feature.name}</h3>
+                <p className="text-zinc-500 text-sm">{feature.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* 支持的语言 */}
+          <div className="mt-12 text-center scroll-fade-in">
+            <p className="text-zinc-400 text-sm mb-4">支持主流编程语言</p>
+            <div className="flex flex-wrap justify-center gap-3">
+              {['TypeScript', 'JavaScript', 'Python', 'Vue', 'React'].map((lang) => (
+                <span 
+                  key={lang}
+                  className="px-3 py-1.5 bg-white border border-zinc-200 rounded-full text-sm text-zinc-600 font-medium"
+                >
+                  {lang}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* 技术架构 */}
-      <section ref={archRef} className="relative py-16 sm:py-32 px-4 bg-zinc-50/50">
+      <section ref={archRef} className="relative py-16 sm:py-32 px-4">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-10 sm:mb-16 scroll-fade-in">
             <h2 className="text-2xl sm:text-4xl font-bold mb-4 text-zinc-900">
@@ -458,7 +513,7 @@ export default function LandingPage() {
       </section>
 
       {/* 支持的文档格式 */}
-      <section className="relative py-16 sm:py-24 px-4">
+      <section className="relative py-16 sm:py-24 px-4 bg-zinc-50/50">
         <div className="max-w-4xl mx-auto">
           <div className="scroll-fade-in bg-white border border-zinc-200 rounded-2xl p-8 sm:p-12 text-center shadow-sm">
             <h3 className="text-xl sm:text-2xl font-bold mb-6 text-zinc-900">支持多种文档格式</h3>

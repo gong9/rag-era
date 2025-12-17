@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+// @ts-ignore
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { BookOpen, LogOut, Plus, Trash2, MessageSquare, Search, FileText, ChevronRight, ChevronLeft, BarChart3, Database, Clock, FlaskConical } from 'lucide-react';
+import { BookOpen, LogOut, Plus, Trash2, MessageSquare, Search, FileText, ChevronRight, ChevronLeft, BarChart3, Database, Clock, FlaskConical, Code2 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -50,7 +51,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleCreate = async (e: any) => {
     e.preventDefault();
     setCreating(true);
 
@@ -73,7 +74,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: any) => {
     e.stopPropagation();
     if (!confirm('确定要删除这个知识库吗？这将删除所有相关的文档和聊天记录。')) {
       return;
@@ -152,6 +153,32 @@ export default function DashboardPage() {
             </Button>
           </div>
         </div>
+        
+        {/* Navigation Tabs */}
+        <div className="container mx-auto px-4 sm:px-6">
+          <nav className="flex gap-1 -mb-px">
+            <button
+              className="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 border-zinc-900 text-zinc-900 transition-colors"
+            >
+              <Database className="w-4 h-4" />
+              知识库
+            </button>
+            <button
+              onClick={() => router.push('/dashboard/codebase')}
+              className="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 border-transparent text-zinc-500 hover:text-zinc-900 hover:border-zinc-300 transition-colors"
+            >
+              <Code2 className="w-4 h-4" />
+              代码库
+            </button>
+            <button
+              onClick={() => router.push('/dashboard/eval')}
+              className="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 border-transparent text-zinc-500 hover:text-zinc-900 hover:border-zinc-300 transition-colors"
+            >
+              <BarChart3 className="w-4 h-4" />
+              评估
+            </button>
+          </nav>
+        </div>
       </header>
 
       {/* Main Content */}
@@ -189,19 +216,11 @@ export default function DashboardPage() {
             {/* Action Buttons */}
             <div className="flex gap-2 sm:gap-3">
               <Button 
-                onClick={() => router.push('/dashboard/eval')} 
-                variant="outline"
-                className="border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 hover:border-zinc-300 transition-all flex-1 sm:flex-none text-sm sm:text-base h-9 sm:h-10"
-              >
-                <BarChart3 className="w-4 h-4 mr-1.5 sm:mr-2" />
-                评估
-              </Button>
-              <Button 
                 onClick={() => setShowCreateForm(true)} 
                 className="bg-zinc-900 hover:bg-zinc-800 text-white shadow-lg shadow-zinc-200 transition-all hover:-translate-y-0.5 flex-1 sm:flex-none text-sm sm:text-base h-9 sm:h-10"
               >
                 <Plus className="w-4 h-4 mr-1.5 sm:mr-2" />
-                新建
+                新建知识库
               </Button>
             </div>
           </div>

@@ -91,3 +91,27 @@ export function isLLMConfigured(): boolean {
   return isConfigured;
 }
 
+/**
+ * 获取 OpenAI LLM 实例
+ */
+export function getOpenAI(): OpenAI {
+  const config = getDefaultConfig();
+  return new OpenAI({
+    apiKey: config.apiKey,
+    model: config.llmModel,
+    baseURL: config.baseURL,
+  });
+}
+
+/**
+ * 获取 Embedding 模型实例
+ */
+export function getEmbedModel(): OpenAIEmbedding {
+  const config = getDefaultConfig();
+  return new OpenAIEmbedding({
+    apiKey: config.apiKey,
+    model: config.embeddingModel,
+    baseURL: config.baseURL,
+  });
+}
+

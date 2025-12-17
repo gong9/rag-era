@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+// @ts-ignore - React 18 types
+import React, { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import dynamic from 'next/dynamic';
@@ -69,8 +70,8 @@ const TypewriterText = ({ text, onComplete }: { text: string; onComplete?: () =>
   useEffect(() => {
     if (currentIndex < text.length) {
       const timeout = setTimeout(() => {
-        setDisplayedText((prev) => prev + text[currentIndex]);
-        setCurrentIndex((prev) => prev + 1);
+        setDisplayedText((prev: string) => prev + text[currentIndex]);
+        setCurrentIndex((prev: number) => prev + 1);
       }, 15);
       return () => clearTimeout(timeout);
     } else {
@@ -268,7 +269,7 @@ export default function ChatPage() {
       });
       if (response.ok) {
         const newSession: ChatSession = await response.json();
-        setSessions((prev) => [newSession, ...prev]);
+        setSessions((prev: ChatSession[]) => [newSession, ...prev]);
         setCurrentSessionId(newSession.id);
         setMessages([]);
         if (window.innerWidth < 768) setShowSidebar(false);
@@ -286,9 +287,9 @@ export default function ChatPage() {
         method: 'DELETE',
       });
       if (response.ok) {
-        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        setSessions((prev: ChatSession[]) => prev.filter((s: ChatSession) => s.id !== sessionId));
         if (currentSessionId === sessionId) {
-          const remaining = sessions.filter((s) => s.id !== sessionId);
+          const remaining = sessions.filter((s: ChatSession) => s.id !== sessionId);
           if (remaining.length > 0) {
             setCurrentSessionId(remaining[0].id);
           } else {
@@ -302,7 +303,8 @@ export default function ChatPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // @ts-ignore
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
 
@@ -315,7 +317,7 @@ export default function ChatPage() {
       });
       if (response.ok) {
         const newSession: ChatSession = await response.json();
-        setSessions((prev) => [newSession, ...prev]);
+        setSessions((prev: ChatSession[]) => [newSession, ...prev]);
         setCurrentSessionId(newSession.id);
         sessionId = newSession.id;
       } else {
@@ -331,7 +333,7 @@ export default function ChatPage() {
       content: input,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev: Message[]) => [...prev, userMessage]);
     const currentInput = input;
     setInput('');
     setLoading(true);
@@ -368,7 +370,7 @@ export default function ChatPage() {
           sources: sources.length > 0 ? sources : undefined,
           isNew: true,
         };
-        setMessages((prev) => [...prev, assistantMessage]);
+        setMessages((prev: Message[]) => [...prev, assistantMessage]);
         fetchSessions();
       } else {
         const error = await response.json();
@@ -379,7 +381,7 @@ export default function ChatPage() {
           isError: true,
           isNew: false,
         };
-        setMessages((prev) => [...prev, errorMessage]);
+        setMessages((prev: Message[]) => [...prev, errorMessage]);
       }
     } catch (error) {
       console.error('查询失败:', error);
@@ -390,7 +392,7 @@ export default function ChatPage() {
         isError: true,
         isNew: false,
       };
-      setMessages((prev) => [...prev, errorMessage]);
+      setMessages((prev: Message[]) => [...prev, errorMessage]);
     } finally {
       setLoading(false);
       setIsSubmitting(false); // 提交完成，允许 useEffect 获取消息
@@ -421,7 +423,7 @@ export default function ChatPage() {
     return sessionDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
   };
 
-  const groupedSessions = sessions.reduce((groups, session) => {
+  const groupedSessions = sessions.reduce((groups: Record<string, ChatSession[]>, session: ChatSession) => {
     const label = getDateLabel(session.updatedAt);
     if (!groups[label]) {
       groups[label] = [];
@@ -465,13 +467,13 @@ export default function ChatPage() {
               </div>
             ) : (
               <div className="space-y-6">
-                {Object.entries(groupedSessions).map(([label, sessionList]) => (
+                {(Object.entries(groupedSessions) as [string, ChatSession[]][]).map(([label, sessionList]) => (
                   <div key={label}>
                     <h3 className="px-3 mb-2 text-[11px] font-medium text-zinc-400 uppercase tracking-wider">
                       {label}
                     </h3>
                     <div className="space-y-0.5">
-                      {sessionList.map((session) => (
+                      {sessionList.map((session: ChatSession) => (
                         <div
                           key={session.id}
                           className={cn(
@@ -568,7 +570,7 @@ export default function ChatPage() {
               </div>
             )}
 
-            {messages.map((message, index) => {
+            {messages.map((message: Message, index: number) => {
               const showTypewriter = message.isNew && message.role === 'assistant' && !message.isError;
 
               return (
@@ -616,7 +618,7 @@ export default function ChatPage() {
                                 <span>思考过程</span>
                               </div>
                               <div className="space-y-1.5 text-amber-900/70">
-                                {message.thinking.map((step, i) => (
+                                {message.thinking.map((step: string, i: number) => (
                                   <div key={i} className="flex items-start gap-2">
                                     <span className="text-amber-400 mt-0.5">›</span>
                                     <span>{step}</span>
@@ -641,8 +643,8 @@ export default function ChatPage() {
                                       <TypewriterText 
                                         text={textContent} 
                                         onComplete={() => {
-                                          setMessages((prev) => 
-                                            prev.map((m) => 
+                                          setMessages((prev: Message[]) => 
+                                            prev.map((m: Message) => 
                                               m.id === message.id ? { ...m, isNew: false } : m
                                             )
                                           );
@@ -782,7 +784,8 @@ export default function ChatPage() {
                 <Input
                   ref={inputRef}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  // @ts-ignore
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
                   placeholder={ragMode === 'agentic' ? "让 Agent 帮你深度分析..." : "给知识库发送消息..."}
                   disabled={loading}
                   className="flex-1 pl-2 pr-14 py-7 bg-transparent border-0 focus-visible:ring-0 placeholder:text-zinc-400 text-zinc-800"

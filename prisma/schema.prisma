@@ -17,6 +17,7 @@ model User {
   knowledgeBases KnowledgeBase[]
   chatSessions  ChatSession[]
   chatHistories ChatHistory[]
+  codeBases     CodeBase[]
 }
 
 model KnowledgeBase {
@@ -26,8 +27,6 @@ model KnowledgeBase {
   userId      String
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   documents   Document[]
-  chatSessions ChatSession[]
-  chatHistories ChatHistory[]
   evalRuns    EvalRun[]
   memories    Memory[]
   createdAt   DateTime   @default(now())
@@ -53,32 +52,30 @@ model Document {
 }
 
 model ChatSession {
-  id              String        @id @default(uuid())
-  title           String        @default("新对话")
-  knowledgeBaseId String
+  id              String         @id @default(uuid())
+  title           String         @default("新对话")
+  knowledgeBaseId String         // 可以是知识库 ID 或 "codebase_xxx" 格式（无外键约束）
   userId          String
-  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   chatHistories   ChatHistory[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([knowledgeBaseId])
   @@index([userId])
 }
 
 model ChatHistory {
-  id              String        @id @default(uuid())
+  id              String         @id @default(uuid())
   sessionId       String
-  knowledgeBaseId String
+  knowledgeBaseId String         // 可以是知识库 ID 或 "codebase_xxx" 格式（无外键约束）
   userId          String
   question        String
   answer          String
   sourceNodes     String?
-  session         ChatSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt       DateTime      @default(now())
+  session         ChatSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime       @default(now())
 
   @@index([sessionId])
   @@index([knowledgeBaseId])
@@ -152,5 +149,134 @@ model EvalResult {
   createdAt       DateTime @default(now())
 
   @@index([evalRunId])
+}
+
+// ==================== GitHub 代码库系统 ====================
+
+model CodeBase {
+  id            String       @id @default(uuid())
+  name          String
+  description   String?
+  githubUrl     String                           // GitHub 仓库 URL
+  branch        String       @default("main")    // 分支名
+  status        String       @default("pending") // pending | cloning | parsing | indexing | completed | failed
+  errorMessage  String?
+  fileCount     Int          @default(0)         // 代码文件数量
+  lastSyncAt    DateTime?                        // 最后同步时间
+  
+  // 仓库结构信息（DeepWiki 风格）
+  repoType      String?                          // monorepo | single | library
+  mainLanguage  String?                          // 主要编程语言
+  structureJson String?                          // JSON: 完整结构分析结果（缓存）
+  
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeFiles     CodeFile[]
+  codeSymbols   CodeSymbol[]                     // 代码符号（函数、类等）
+  repoModules   RepoModule[]                     // 模块列表
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([userId])
+}
+
+model CodeFile {
+  id          String    @id @default(uuid())
+  path        String                             // 文件相对路径
+  language    String                             // ts | tsx | js | jsx | md | json
+  content     String?                            // 原始内容
+  lineCount   Int       @default(0)              // 行数
+  codeBaseId  String
+  codeBase    CodeBase  @relation(fields: [codeBaseId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@index([codeBaseId])
+}
+
+// ==================== 模块图系统（DeepWiki 风格）====================
+
+// 仓库模块（Layer 1: Module Graph）
+model RepoModule {
+  id            String   @id @default(uuid())
+  codeBaseId    String
+  codeBase      CodeBase @relation(fields: [codeBaseId], references: [id], onDelete: Cascade)
+  
+  // 基础信息
+  name          String                           // 模块名: react-reconciler
+  path          String                           // 模块路径: packages/react-reconciler
+  entryFile     String?                          // 入口文件: src/index.ts
+  version       String?                          // 版本号
+  
+  // LLM 生成的语义信息
+  summary       String?                          // 模块摘要
+  responsibilities String?                       // JSON: 关键职责列表
+  publicAPI     String?                          // JSON: 公共 API 列表
+  readme        String?                          // 模块 README 内容
+  
+  // 向量索引
+  embedding     String?                          // JSON: 摘要的 embedding 向量
+  
+  // 深索引状态
+  deepIndexed   Boolean  @default(false)         // 是否已深度索引
+  deepIndexAt   DateTime?                        // 深度索引时间
+  
+  // 关联
+  symbols       CodeSymbol[]                     // 模块内的符号
+  dependencies  ModuleDependency[] @relation("DependsOn")   // 依赖的模块
+  dependents    ModuleDependency[] @relation("DependedBy")  // 被依赖的模块
+  
+  createdAt     DateTime @default(now())
+
+  @@index([codeBaseId])
+  @@index([name])
+}
+
+// 模块依赖关系（模块图的边）
+model ModuleDependency {
+  id          String     @id @default(uuid())
+  fromId      String
+  toId        String
+  from        RepoModule @relation("DependsOn", fields: [fromId], references: [id], onDelete: Cascade)
+  to          RepoModule @relation("DependedBy", fields: [toId], references: [id], onDelete: Cascade)
+  
+  type        String     @default("import")      // import | extends | implements | uses
+  
+  @@unique([fromId, toId])
+  @@index([fromId])
+  @@index([toId])
+}
+
+// ==================== 代码符号系统（用于搜索）====================
+
+// 代码符号（函数、类、方法等）- 用于关键词搜索
+model CodeSymbol {
+  id          String     @id @default(uuid())
+  codeBaseId  String
+  codeBase    CodeBase   @relation(fields: [codeBaseId], references: [id], onDelete: Cascade)
+  
+  // 基础信息
+  name        String                             // 符号名称: createApp
+  qualifiedName String?                          // 完整限定名: packages/runtime-core/src/apiCreateApp.ts:createApp
+  type        String                             // function | class | method | variable | interface
+  filePath    String                             // 文件相对路径
+  startLine   Int
+  endLine     Int
+  signature   String?                            // 函数签名
+  exported    Boolean    @default(false)
+  
+  // 模块归属
+  moduleId    String?                            // 所属模块 ID
+  module      RepoModule? @relation(fields: [moduleId], references: [id])
+  
+  // 语义信息（从注释/JSDoc 提取）
+  docComment  String?                            // JSDoc/docstring 原文
+  semanticTags String?                           // JSON: 语义标签
+  
+  createdAt   DateTime   @default(now())
+
+  @@index([codeBaseId])
+  @@index([moduleId])
+  @@index([name])
+  @@index([filePath])
 }
 

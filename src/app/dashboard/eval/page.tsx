@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+// @ts-ignore
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
@@ -358,7 +359,7 @@ export default function EvalDashboardPage() {
     }
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: any) => {
     e.stopPropagation();
     if (!confirm('确定要删除这个评估记录吗？')) return;
     try {

@@ -98,6 +98,7 @@ class MeilisearchService {
    * 索引文档内容
    * @param knowledgeBaseId 知识库 ID
    * @param documents 文档列表
+   * @param onProgress 可选的进度回调 (current, total, message)
    */
   async indexDocuments(
     knowledgeBaseId: string,
@@ -106,7 +107,8 @@ class MeilisearchService {
       documentName: string;
       content: string;
       chunks: string[];
-    }>
+    }>,
+    onProgress?: (current: number, total: number, message: string) => void
   ): Promise<void> {
     try {
       const index = await this.getIndex(knowledgeBaseId);
@@ -116,8 +118,10 @@ class MeilisearchService {
       for (const doc of documents) {
         // 为每个 chunk 创建一条记录
         doc.chunks.forEach((chunk, i) => {
+          // Meilisearch ID 只支持 a-z A-Z 0-9 - _，需要清理特殊字符
+          const safeDocId = doc.documentId.replace(/[^a-zA-Z0-9_-]/g, '_');
           meiliDocs.push({
-            id: `${doc.documentId}_chunk_${i}`,
+            id: `${safeDocId}_chunk_${i}`,
             documentId: doc.documentId,
             documentName: doc.documentName,
             content: chunk,
@@ -128,10 +132,32 @@ class MeilisearchService {
       }
 
       if (meiliDocs.length > 0) {
-        await index.addDocuments(meiliDocs);
-        // 等待索引完成
-        await new Promise(resolve => setTimeout(resolve, 300));
-        console.log(`[Meilisearch] Indexed ${meiliDocs.length} chunks for KB ${knowledgeBaseId}`);
+        // 分批添加文档（每批 500 个）避免单次请求过大
+        const batchSize = 500;
+        const totalBatches = Math.ceil(meiliDocs.length / batchSize);
+        
+        for (let i = 0; i < meiliDocs.length; i += batchSize) {
+          const batchNum = Math.floor(i / batchSize) + 1;
+          const batch = meiliDocs.slice(i, i + batchSize);
+          
+          // 发送进度
+          onProgress?.(batchNum, totalBatches, `索引搜索引擎 ${batchNum}/${totalBatches} 批...`);
+          
+          const task = await index.addDocuments(batch);
+          
+          // 等待任务完成并检查状态
+          const client = this.getClient();
+          const finishedTask = await client.tasks.waitForTask(task.taskUid);
+          
+          if (finishedTask.status === 'failed') {
+            console.error(`[Meilisearch] Batch ${batchNum} failed:`, finishedTask.error);
+            throw new Error(`Meilisearch indexing failed: ${finishedTask.error?.message || 'Unknown error'}`);
+          }
+          
+          console.log(`[Meilisearch] Indexed batch ${batchNum}/${totalBatches} (${batch.length} docs)`);
+        }
+        
+        console.log(`[Meilisearch] Successfully indexed ${meiliDocs.length} chunks for KB ${knowledgeBaseId}`);
       }
     } catch (error) {
       console.error(`[Meilisearch] Failed to index documents:`, error);

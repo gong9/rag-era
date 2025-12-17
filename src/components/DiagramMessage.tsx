@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+// @ts-ignore
+import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Download, Maximize2, Minimize2, RefreshCw, Code } from 'lucide-react';
 
