@@ -196,6 +196,7 @@ export default function CodebasePage() {
             >
               <Code2 className="w-4 h-4" />
               代码库
+              <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium bg-orange-100 text-orange-600 rounded">Beta</span>
             </button>
             <button
               onClick={() => router.push('/dashboard/eval')}

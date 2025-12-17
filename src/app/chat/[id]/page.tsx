@@ -62,8 +62,8 @@ interface ChatSession {
   _count: { chatHistories: number };
 }
 
-// 打字机效果组件
-const TypewriterText = ({ text, onComplete }: { text: string; onComplete?: () => void }) => {
+// 打字机效果组件 - 使用 memo 优化
+const TypewriterText = React.memo(({ text, onComplete }: { text: string; onComplete?: () => void }) => {
   const [displayedText, setDisplayedText] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -87,10 +87,10 @@ const TypewriterText = ({ text, onComplete }: { text: string; onComplete?: () =>
   }, [text]);
 
   return <ReactMarkdown>{displayedText}</ReactMarkdown>;
-};
+});
 
-// 检索来源面板组件
-const RetrievalPanel = ({ sources, messageId }: { sources: RetrievalSource[]; messageId: string }) => {
+// 检索来源面板组件 - 使用 memo 优化
+const RetrievalPanel = React.memo(({ sources, messageId }: { sources: RetrievalSource[]; messageId: string }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedSource, setExpandedSource] = useState<number | null>(null);
   
@@ -169,7 +169,7 @@ const RetrievalPanel = ({ sources, messageId }: { sources: RetrievalSource[]; me
       )}
     </div>
   );
-};
+});
 
 export default function ChatPage() {
   const { data: session } = useSession();
@@ -190,8 +190,8 @@ export default function ChatPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchKnowledgeBase();
-    fetchSessions();
+    // 并行加载，加快初始化速度
+    Promise.all([fetchKnowledgeBase(), fetchSessions()]);
   }, [params.id]);
 
   useEffect(() => {

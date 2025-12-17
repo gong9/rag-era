@@ -96,7 +96,7 @@ class LightRAGClient {
   async health(): Promise<HealthResponse | null> {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 1500); // 减少超时到 1.5 秒
 
       const response = await fetch(`${this.baseUrl}/health`, {
         signal: controller.signal,
@@ -152,7 +152,14 @@ class LightRAGClient {
    */
   async getGraph(kbId: string, limit: number = 100): Promise<GraphData> {
     try {
-      const response = await fetch(`${this.baseUrl}/graph/${kbId}?limit=${limit}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 秒超时
+
+      const response = await fetch(`${this.baseUrl}/graph/${kbId}?limit=${limit}`, {
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`Get graph failed: ${response.status}`);

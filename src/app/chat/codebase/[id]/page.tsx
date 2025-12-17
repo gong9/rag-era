@@ -80,8 +80,8 @@ interface FilePreview {
 // 组件
 // ========================
 
-// 代码块组件 - 支持语法高亮和复制
-const CodeBlock = ({ language, value }: { language: string; value: string }) => {
+// 代码块组件 - 支持语法高亮和复制 (memo 优化)
+const CodeBlock = React.memo(({ language, value }: { language: string; value: string }) => {
   const [copied, setCopied] = useState(false);
   
   const handleCopy = async () => {
@@ -135,10 +135,10 @@ const CodeBlock = ({ language, value }: { language: string; value: string }) => 
       </div>
     </div>
   );
-};
+});
 
-// 自定义 Markdown 渲染组件
-const MarkdownContent = ({ 
+// 自定义 Markdown 渲染组件 - 使用 memo 避免不必要的重渲染
+const MarkdownContent = React.memo(({ 
   content, 
 }: { 
   content: string; 
@@ -210,10 +210,10 @@ const MarkdownContent = ({
       {content}
     </ReactMarkdown>
   );
-};
+});
 
-// 打字机效果组件
-const TypewriterText = ({ 
+// 打字机效果组件 - 使用 memo 避免不必要的重渲染
+const TypewriterText = React.memo(({ 
   text, 
   onComplete,
 }: { 
@@ -236,10 +236,10 @@ const TypewriterText = ({
   }, [currentIndex, text, onComplete]);
 
   return <MarkdownContent content={displayedText} />;
-};
+});
 
-// 代码源面板组件
-const CodeSourcePanel = ({ 
+// 代码源面板组件 - 使用 memo 避免不必要的重渲染
+const CodeSourcePanel = React.memo(({ 
   sources, 
   messageId,
   onFileClick 
@@ -285,7 +285,7 @@ const CodeSourcePanel = ({
       )}
     </div>
   );
-};
+});
 
 // ========================
 // 主页面
