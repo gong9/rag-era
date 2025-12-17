@@ -6,3 +6,8 @@ INFO:     Waiting for application startup.
 2025-12-17 09:47:48,066 - main - INFO - LightRAG service starting...
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8005 (Press CTRL+C to quit)
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-12-17 10:13:27,668 - main - INFO - LightRAG service shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8637]
