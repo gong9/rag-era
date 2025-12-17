@@ -50,6 +50,12 @@ export default function KnowledgeBaseDetailPage() {
   const [graphMessage, setGraphMessage] = useState(''); // 图谱构建消息
   const [showGraphViewer, setShowGraphViewer] = useState(false); // 显示图谱可视化
   const [showConfirmDialog, setShowConfirmDialog] = useState(false); // 显示确认对话框
+  
+  // 文档预览相关状态
+  const [previewDoc, setPreviewDoc] = useState<{ id: string; name: string } | null>(null);
+  const [previewContent, setPreviewContent] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewWordCount, setPreviewWordCount] = useState(0);
 
   useEffect(() => {
     fetchKnowledgeBase();
@@ -390,6 +396,30 @@ export default function KnowledgeBaseDetailPage() {
       }
     } catch (error) {
       console.error('删除文档失败:', error);
+    }
+  };
+
+  // 预览文档内容
+  const handlePreview = async (doc: { id: string; name: string }) => {
+    setPreviewDoc(doc);
+    setPreviewLoading(true);
+    setPreviewContent('');
+    setPreviewWordCount(0);
+    
+    try {
+      const response = await fetch(`/api/documents/${doc.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPreviewContent(data.content || '');
+        setPreviewWordCount(data.wordCount || 0);
+      } else {
+        setPreviewContent('无法加载文档内容');
+      }
+    } catch (error) {
+      console.error('获取文档内容失败:', error);
+      setPreviewContent('加载失败，请重试');
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -740,14 +770,26 @@ export default function KnowledgeBaseDetailPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
-                          onClick={() => handleDelete(doc.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-all"
+                            onClick={() => handlePreview({ id: doc.id, name: doc.name })}
+                            title="预览文档"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                            onClick={() => handleDelete(doc.id)}
+                            title="删除文档"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -807,6 +849,77 @@ export default function KnowledgeBaseDetailPage() {
               >
                 <Network className="w-4 h-4 mr-2" />
                 开始构建
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 文档预览弹窗 */}
+      {previewDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* 背景遮罩 */}
+          <div 
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setPreviewDoc(null)}
+          />
+          
+          {/* 预览对话框 */}
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-4 max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            {/* 头部 */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
+                  {getFileIcon(previewDoc.name)}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 truncate max-w-md" title={previewDoc.name}>
+                    {previewDoc.name}
+                  </h3>
+                  {previewWordCount > 0 && (
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {previewWordCount.toLocaleString()} 字
+                    </p>
+                  )}
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setPreviewDoc(null)}
+                className="text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            
+            {/* 内容区域 */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {previewLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="w-8 h-8 border-2 border-gray-200 border-t-zinc-900 rounded-full animate-spin" />
+                </div>
+              ) : previewContent ? (
+                <div className="prose prose-sm max-w-none">
+                  <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed bg-gray-50/50 rounded-lg p-4 border border-gray-100">
+                    {previewContent}
+                  </pre>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                  <FileText className="w-12 h-12 mb-3" />
+                  <p>暂无内容</p>
+                </div>
+              )}
+            </div>
+            
+            {/* 底部 */}
+            <div className="flex justify-end px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+              <Button
+                onClick={() => setPreviewDoc(null)}
+                className="bg-zinc-900 hover:bg-zinc-800 text-white px-6"
+              >
+                关闭
               </Button>
             </div>
           </div>

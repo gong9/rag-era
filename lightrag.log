@@ -1,28 +1,28 @@
-2025-12-17 10:22:14,237 - __main__ - INFO - Starting LightRAG service on 0.0.0.0:8005
-2025-12-17 10:22:14,237 - __main__ - INFO - Storage directory: /Users/gongzhen/code/2025/hzm/rag/lightrag-data
-2025-12-17 10:22:14,237 - __main__ - INFO - LLM Model: qwen-turbo
-INFO:     Started server process [50949]
+2025-12-17 14:40:06,318 - __main__ - INFO - Starting LightRAG service on 0.0.0.0:8005
+2025-12-17 14:40:06,318 - __main__ - INFO - Storage directory: /Users/gongzhen/code/2025/hzm/rag/lightrag-data
+2025-12-17 14:40:06,318 - __main__ - INFO - LLM Model: qwen-turbo
+INFO:     Started server process [89729]
 INFO:     Waiting for application startup.
-2025-12-17 10:22:14,274 - main - INFO - LightRAG service starting...
+2025-12-17 14:40:06,349 - main - INFO - LightRAG service starting...
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8005 (Press CTRL+C to quit)
-INFO:     127.0.0.1:65534 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49152 - "GET /graph/8ecb4b91-d446-41c5-b3c8-da41edb82801?limit=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65534 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49152 - "GET /graph/8ecb4b91-d446-41c5-b3c8-da41edb82801?limit=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51074 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51076 - "GET /graph/8ecb4b91-d446-41c5-b3c8-da41edb82801?limit=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51074 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51076 - "GET /graph/8ecb4b91-d446-41c5-b3c8-da41edb82801?limit=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51722 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51724 - "GET /graph/8ecb4b91-d446-41c5-b3c8-da41edb82801?limit=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51769 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51771 - "GET /graph/8ecb4b91-d446-41c5-b3c8-da41edb82801?limit=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53139 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53141 - "GET /graph/8ecb4b91-d446-41c5-b3c8-da41edb82801?limit=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53139 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53141 - "GET /graph/8ecb4b91-d446-41c5-b3c8-da41edb82801?limit=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53139 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53141 - "GET /graph/8ecb4b91-d446-41c5-b3c8-da41edb82801?limit=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53139 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53141 - "GET /graph/8ecb4b91-d446-41c5-b3c8-da41edb82801?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60092 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60093 - "GET /graph/8ecb4b91-d446-41c5-b3c8-da41edb82801?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60092 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60093 - "GET /graph/8ecb4b91-d446-41c5-b3c8-da41edb82801?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60446 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60447 - "GET /graph/8ecb4b91-d446-41c5-b3c8-da41edb82801?limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60596 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60597 - "GET /graph/8ecb4b91-d446-41c5-b3c8-da41edb82801?limit=1 HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Finished server process [89729]
+ERROR:    Traceback (most recent call last):
+  File "/Users/gongzhen/code/2025/hzm/rag/lightrag-service/venv/lib/python3.11/site-packages/starlette/routing.py", line 701, in lifespan
+    await receive()
+  File "/Users/gongzhen/code/2025/hzm/rag/lightrag-service/venv/lib/python3.11/site-packages/uvicorn/lifespan/on.py", line 137, in receive
+    return await self.receive_queue.get()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/gongzhen/.local/share/uv/python/cpython-3.11.14-macos-aarch64-none/lib/python3.11/asyncio/queues.py", line 158, in get
+    await getter
+asyncio.exceptions.CancelledError
+
