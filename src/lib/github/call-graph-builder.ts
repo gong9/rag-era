@@ -46,7 +46,7 @@ export async function extractSymbols(
 }
 
 /**
- * 将符号保存到数据库（已简化）
+ * 将符号保存到数据库
  */
 export async function saveSymbolsToDatabase(
   codeBaseId: string,
